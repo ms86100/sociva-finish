@@ -1,10 +1,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
+import {
+  isCronSecretRequest,
+  isServiceRoleRequest,
+} from "../_shared/worker-auth.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-cron-secret",
-};
+/* cors: use corsHeadersFor(req) */
 
 type ReminderKind =
   | "scheduled_48h"
@@ -118,13 +119,15 @@ const WINDOWS: WindowSpec[] = [
 ];
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
+  if (req.method === "OPTIONS") {
+    return handleCorsPreflight(req);
+  }
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const authHeader = req.headers.get("Authorization") || "";
-  const cronSecret = req.headers.get("x-cron-secret") || "";
-  const isService = authHeader === `Bearer ${serviceKey}`;
-  const isCron = cronSecret.length >= 32;
+  const isService = isServiceRoleRequest(req, serviceKey);
+  const isCron = isCronSecretRequest(req);
   if (!isService && !isCron) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,

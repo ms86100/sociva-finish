@@ -1,16 +1,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { withAuth } from "../_shared/auth.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+/* cors: use corsHeadersFor(req) */
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
   try {
@@ -82,92 +80,34 @@ Deno.serve(async (req) => {
           console.warn('society_aliases upsert skipped:', aliasErr);
         }
 
+        const { data: matchedRow } = await adminClient
+          .from("societies")
+          .select("id, name, is_active, is_verified")
+          .eq("id", matches[0].society_id)
+          .maybeSingle();
+        const joinable = !!(matchedRow?.is_active && matchedRow?.is_verified);
         return new Response(
           JSON.stringify({
-            valid: true,
+            valid: joinable,
             matched: true,
             society: {
               id: matches[0].society_id,
               name: matches[0].society_name,
-              is_active: true,
-              is_verified: true,
+              is_active: !!matchedRow?.is_active,
+              is_verified: !!matchedRow?.is_verified,
             },
           }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: joinable ? 200 : 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
-      }
-
-      // Check for duplicate slug
-      const { data: existingSlug } = await adminClient
-        .from("societies")
-        .select("id")
-        .eq("slug", sanitizedSlug)
-        .maybeSingle();
-
-      if (existingSlug) {
-        return new Response(
-          JSON.stringify({ error: "A society with this slug already exists" }),
-          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Compute normalized_name for the new society
-      const normalizedName = sanitizedName.toLowerCase()
-        .replace(/\s*(phase|ph|tower|block|wing|sec|sector)\s*[\d-]*/gi, '')
-        .replace(/\s+/g, ' ').trim();
-
-      const { data: created, error: createError } = await adminClient
-        .from("societies")
-        .insert({
-          name: sanitizedName,
-          slug: sanitizedSlug,
-          normalized_name: normalizedName,
-          address: address || null,
-          city: city || null,
-          state: state || null,
-          pincode: pincode || null,
-          latitude: latitude || null,
-          longitude: longitude || null,
-          is_verified: false,
-          is_active: false,
-        })
-        .select("id, name, is_active, is_verified")
-        .single();
-
-      if (createError) {
-        console.error("Society creation error:", createError);
-        return new Response(
-          JSON.stringify({ error: "Failed to create society: " + createError.message }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      // Auto-create alias for the new society (best-effort; never fail create)
-      try {
-        const aliasNormalized = sanitizedName.toLowerCase()
-          .replace(/\s*(phase|ph|tower|block|wing|sec|sector)\s*[\d-]*/gi, '')
-          .replace(/\s+/g, ' ').trim();
-        await adminClient.from('society_aliases').upsert({
-          society_id: created.id,
-          alias_name: sanitizedName,
-          normalized_alias: aliasNormalized,
-          google_place_id: google_place_id || null,
-        }, { onConflict: 'normalized_alias' });
-      } catch (aliasErr) {
-        console.warn('society_aliases upsert skipped:', aliasErr);
       }
 
       return new Response(
         JSON.stringify({
-          valid: true,
-          society: {
-            id: created.id,
-            name: created.name,
-            is_active: created.is_active,
-            is_verified: created.is_verified,
-          },
+          error: "Societies are created by Sociva admin only. Pick an approved society or request it.",
+          valid: false,
+          registry_only: true,
         }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -203,9 +143,10 @@ Deno.serve(async (req) => {
       );
     }
 
+    const joinable = !!(society.is_active && society.is_verified);
     return new Response(
       JSON.stringify({
-        valid: true,
+        valid: joinable,
         society: {
           id: society.id,
           name: society.name,
@@ -213,7 +154,7 @@ Deno.serve(async (req) => {
           is_verified: society.is_verified,
         },
       }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: joinable ? 200 : 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err) {
     console.error("Unexpected error:", err);

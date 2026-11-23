@@ -24,6 +24,8 @@ export type FeatureKey =
   | 'worker_marketplace'
   | 'workforce_management'
   | 'helphub'
+  | 'smart_groups'
+  | 'conversations'
   | 'cleaner_city'
   | 'society_notices'
   | 'delivery_management'

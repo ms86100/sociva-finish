@@ -3,21 +3,20 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getWorkingRazorpayCredentials } from "../_shared/credentials.ts";
 import { verifyRazorpayCheckoutSignature } from "../_shared/razorpay-signature.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-const json = (body: Record<string, unknown>, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+/* cors: use corsHeadersFor(req) */
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const corsHeaders = corsHeadersFor(req);
+  const json = (body: Record<string, unknown>, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  if (req.method === "OPTIONS") {
+    return handleCorsPreflight(req);
+  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -32,8 +31,12 @@ serve(async (req) => {
       const authResult = await withAuth(req, corsHeaders);
       if (authResult instanceof Response) return authResult;
       userId = authResult.userId;
-      const { allowed } = await checkRateLimit(`seller-credit-confirm:${userId}`, 12, 60);
-      if (!allowed) return rateLimitResponse(corsHeaders);
+      const confirmRl = await checkRateLimit(`seller-credit-confirm:${userId}`, 12, 60, {
+        failClosed: true,
+      });
+      if (!confirmRl.allowed) {
+        return rateLimitResponse(corsHeaders, confirmRl.retryAfterSeconds);
+      }
     }
 
     const body = await req.json();

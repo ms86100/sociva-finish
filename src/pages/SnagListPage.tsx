@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { FeatureGate } from '@/components/ui/FeatureGate';
@@ -9,27 +10,9 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { SnagTicketCard } from '@/components/snags/SnagTicketCard';
 import { CreateSnagSheet } from '@/components/snags/CreateSnagSheet';
-import { SnagDetailSheet } from '@/components/snags/SnagDetailSheet';
+import { SnagDetailSheet, type SnagTicket } from '@/components/snags/SnagDetailSheet';
 import { Wrench, Users, AlertTriangle } from 'lucide-react';
 import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
-interface SnagTicket {
-  id: string;
-  flat_number: string;
-  category: string;
-  description: string;
-  photo_urls: string[];
-  status: string;
-  sla_deadline: string;
-  assigned_to_name: string | null;
-  acknowledged_at: string | null;
-  fixed_at: string | null;
-  verified_at: string | null;
-  resolution_note: string | null;
-  created_at: string;
-  reported_by: string;
-  society_id: string;
-  tower_id: string | null;
-}
 
 interface CollectiveEscalation {
   id: string;
@@ -47,6 +30,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 export default function SnagListPage() {
   const { effectiveSocietyId } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tickets, setTickets] = useState<SnagTicket[]>([]);
   const [escalations, setEscalations] = useState<CollectiveEscalation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -60,12 +44,26 @@ export default function SnagListPage() {
       supabase.from('collective_escalations').select('*').eq('society_id', effectiveSocietyId).eq('status', 'active'),
     ]);
 
-    setTickets((ticketRes.data as any) || []);
+    const rows = ((ticketRes.data as any) || []) as SnagTicket[];
+    setTickets(rows);
     setEscalations((escalationRes.data as any) || []);
     setIsLoading(false);
+
+    const deepId = searchParams.get('id');
+    if (deepId) {
+      const match = rows.find((t) => t.id === deepId);
+      if (match) setSelectedTicket(match);
+    }
   };
 
   useEffect(() => { fetchTickets(); }, [effectiveSocietyId]);
+
+  useEffect(() => {
+    const deepId = searchParams.get('id');
+    if (!deepId || tickets.length === 0) return;
+    const match = tickets.find((t) => t.id === deepId);
+    if (match) setSelectedTicket(match);
+  }, [searchParams, tickets]);
 
   if (isLoading) {
     return (
@@ -91,7 +89,6 @@ export default function SnagListPage() {
           <CreateSnagSheet onCreated={fetchTickets} />
         </div>
 
-        {/* Collective Escalations */}
         {escalations.length > 0 && (
           <div className="space-y-2">
             {escalations.map((esc) => (
@@ -129,10 +126,12 @@ export default function SnagListPage() {
               .filter(t => {
                 if (!searchQuery.trim()) return true;
                 const q = searchQuery.toLowerCase();
-                return t.description.toLowerCase().includes(q) ||
-                  t.category.toLowerCase().includes(q) ||
-                  t.flat_number.toLowerCase().includes(q) ||
-                  t.status.toLowerCase().includes(q);
+                const unit = (t.unit_number || t.flat_number || '').toLowerCase();
+                return (t.description || '').toLowerCase().includes(q) ||
+                  (t.category || '').toLowerCase().includes(q) ||
+                  unit.includes(q) ||
+                  (t.status || '').toLowerCase().includes(q) ||
+                  (t.title || '').toLowerCase().includes(q);
               })
               .map((t) => (
                 <SnagTicketCard key={t.id} ticket={t} onClick={() => setSelectedTicket(t)} />
@@ -143,7 +142,15 @@ export default function SnagListPage() {
         <SnagDetailSheet
           ticket={selectedTicket}
           open={!!selectedTicket}
-          onOpenChange={(v) => !v && setSelectedTicket(null)}
+          onOpenChange={(v) => {
+            if (!v) {
+              setSelectedTicket(null);
+              if (searchParams.get('id')) {
+                searchParams.delete('id');
+                setSearchParams(searchParams, { replace: true });
+              }
+            }
+          }}
           onUpdated={() => { fetchTickets(); setSelectedTicket(null); }}
         />
       </div>

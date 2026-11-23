@@ -357,6 +357,8 @@ export async function sendViaActiveWhatsAppProvider(opts: {
           order_id: buttons.orderId,
           status: buttons.status,
           reminder: false,
+          button_method: (evo.raw as { send_method?: string } | undefined)?.send_method ||
+            null,
         }
         : {}),
       note: dryRun

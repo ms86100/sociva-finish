@@ -1,22 +1,23 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { withAdmin } from "../_shared/auth.ts";
 import { getRetellApiKey, getRetellCall, pickRetellCallForAdmin } from "../_shared/retell.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+/* cors: use corsHeadersFor(req) */
 
-function json(status: number, body: Record<string, unknown>) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+function makeJson(corsHeaders: Record<string, string>) {
+  return (status: number, body: Record<string, unknown>) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 }
 
 serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
+  const json = makeJson(corsHeaders);
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
   if (req.method !== "POST") {
     return json(405, { error: "Method not allowed" });

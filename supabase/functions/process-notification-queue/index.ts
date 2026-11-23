@@ -18,6 +18,11 @@ import {
   RINGING_ANDROID_ORDER_CHANNEL,
 } from "../_shared/seller-alert-gate.ts";
 import { classifyPushDeliveryEvidence } from "../_shared/seller-status-reminders-policy.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
+import {
+  isCronSecretRequest,
+  isServiceRoleRequest,
+} from "../_shared/worker-auth.ts";
 
 /** Honest push evidence blob. Never claims device delivery or audible bell from FCM/APNs accept. */
 function buildPushDeliveryEvidence(input: {
@@ -62,10 +67,7 @@ function buildDeliveryEvidence(
   return mergeDeliveryEvidence(existing, buildPushDeliveryEvidence(input), whatsappEvidence);
 }
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
-};
+/* cors: use corsHeadersFor(req) */
 
 const MAX_TOTAL_ATTEMPTS = 9; // 3 retry cycles of 3 attempts each
 const PUSH_TIMEOUT_MS = 5000;
@@ -589,25 +591,20 @@ async function scheduleNextRun(supabase: any, supabaseUrl: string): Promise<void
 // ─── Main Handler ───
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   console.log(`[PNQ] Invoked: method=${req.method}, url=${req.url}`);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Auth gate (audit P0): service_role, cron/worker secret, or admin JWT.
-    // pg_net wake-ups send vault `pnq_worker_secret` as x-cron-secret; that may
-    // not equal CRON_SECRET, so a 32+ char worker header is also accepted.
+    // Auth gate: service_role, exact CRON_SECRET / PNQ_WORKER_SECRET, or admin JWT.
     const authHeader = req.headers.get("Authorization") || "";
-    const isService = authHeader === `Bearer ${supabaseServiceKey}`;
-    const incomingCron = req.headers.get("x-cron-secret") || "";
-    const envCron = Deno.env.get("CRON_SECRET") || "";
-    const isCron = incomingCron.length > 0 && (
-      (envCron.length > 0 && incomingCron === envCron) || incomingCron.length >= 32
-    );
+    const isService = isServiceRoleRequest(req, supabaseServiceKey);
+    const isCron = isCronSecretRequest(req);
     let isAdmin = false;
     if (!isService && !isCron && authHeader.startsWith("Bearer ")) {
       try {

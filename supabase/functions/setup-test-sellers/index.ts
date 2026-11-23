@@ -1,11 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+/* cors: use corsHeadersFor(req) */
 
 const SOCIETY_ID = "a0000000-0000-0000-0000-000000000001"; // Shriram Greenfield
 
@@ -49,8 +46,9 @@ const TEST_SELLERS = [
 ];
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
   const start = Date.now();

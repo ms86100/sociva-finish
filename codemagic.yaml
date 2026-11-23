@@ -1948,8 +1948,11 @@ workflows:
     environment:
       # Codemagic code-signing identity "sociva_keystore" is not present on this
       # personal account. Sign via CM_KEYSTORE_B64 (+ password/alias vars) instead.
+      # Group sociva_android_signing must hold CM_KEYSTORE_B64, CM_KEYSTORE_PASSWORD,
+      # CM_KEY_ALIAS, CM_KEY_PASSWORD (secret) - otherwise Materialize upload keystore fails.
       groups:
         - sociva_android_firebase
+        - sociva_android_signing
       vars:
         BUNDLE_ID: "app.sociva.community"
         APP_NAME: "Sociva"
@@ -2190,8 +2193,10 @@ workflows:
     instance_type: mac_mini_m2
 
     environment:
+      # sociva_android_signing: CM_KEYSTORE_B64 + CM_KEYSTORE_PASSWORD + CM_KEY_ALIAS + CM_KEY_PASSWORD
       groups:
         - sociva_android_firebase
+        - sociva_android_signing
       vars:
         BUNDLE_ID: "app.sociva.community"
         APP_NAME: "Sociva Staging"
@@ -2406,8 +2411,10 @@ workflows:
         distribution_type: app_store
         bundle_identifier: app.sociva.community
       # No android_signing identity on this account - use CM_KEYSTORE_B64 materialization.
+      # sociva_android_signing: CM_KEYSTORE_B64 + passwords/alias (secret in Codemagic UI).
       groups:
         - sociva_android_firebase
+        - sociva_android_signing
       vars:
         BUNDLE_ID: "app.sociva.community"
         WIDGET_BUNDLE_ID: "app.sociva.community.LiveDeliveryWidget"

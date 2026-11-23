@@ -41,9 +41,10 @@ android-config/google-services.json
 !android/transistorsoft.properties.example
 
 tmp/
+.tmp-*
+.tmp-cron-secret.txt
 
-
-# Local keystore password backup � never commit
+# Local keystore password backup - never commit
 sociva-release-keystore-SECRET.txt
 
 .vercel
@@ -54,6 +55,8 @@ public/downloads/*.apk
 .env*
 !.env.staging.example
 !.env.example
+scripts/staging-migs/
+scripts/.staging-fn-*.json
 
 # Desktop Electron (build outputs only — source under desktop/ is tracked)
 desktop/node_modules/

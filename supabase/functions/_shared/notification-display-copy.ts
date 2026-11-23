@@ -33,6 +33,9 @@ export function resolveQueueDisplayCopy(item: {
     else if (item.type === "seller_store_submitted" || item.type === "seller_store_under_review") title = "Store under review";
     else if (item.type === "seller_approved") title = "Store approved";
     else if (item.type === "order") title = "New Order";
+    else if (item.type === "community_reply") title = "New reply on your post";
+    else if (item.type === "message_request") title = "Message request";
+    else if (item.type === "conversation_message") title = "New message";
     else title = "Order Update";
   }
 
@@ -69,6 +72,12 @@ export function resolveQueueDisplayCopy(item: {
       body = "Your store application is with our team. You'll get a notification when the review is complete.";
     } else if (item.type === "seller_approved") {
       body = "Your store passed review. Recharge Sociva Credits to go live for buyers nearby.";
+    } else if (item.type === "community_reply") {
+      body = "Someone replied on your community post. Tap to open Smart Groups.";
+    } else if (item.type === "message_request") {
+      body = "A neighbour wants to message you. Tap to review the request.";
+    } else if (item.type === "conversation_message") {
+      body = "You have a new private message from a neighbour.";
     } else if (itemSummary) body = itemSummary;
     else if (status) body = `Your order is now ${status.replace(/_/g, " ")}.`;
     else body = "Tap to view details.";

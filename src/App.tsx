@@ -165,6 +165,8 @@ const SellerWalletPage = lazyWithRetry(() => import("./pages/SellerWalletPage"))
 const SellerCreditsPage = lazyWithRetry(() => import("./pages/SellerCreditsPage"));
 const SellerPayoutsPage = lazyWithRetry(() => import("./pages/SellerPayoutsPage"));
 const SellerMessagesPage = lazyWithRetry(() => import("./pages/SellerMessagesPage"));
+const MessagesPage = lazyWithRetry(() => import("./pages/MessagesPage"));
+const ConversationThreadPage = lazyWithRetry(() => import("./pages/ConversationThreadPage"));
 const AdminPage = lazyWithRetry(() => import("./pages/AdminPage"));
 const AdminFinancialTracePage = lazyWithRetry(() => import("./pages/AdminFinancialTracePage"));
 const AdminFinancialControlsPage = lazyWithRetry(() => import("./pages/AdminFinancialControlsPage"));
@@ -740,6 +742,7 @@ function AppRoutes() {
           <Route path="/discover-location" element={<RouteErrorBoundary sectionName="Location"><LocationDiscoveryPage /></RouteErrorBoundary>} />
           <Route path="/search" element={<RouteErrorBoundary sectionName="Search"><SearchPage /></RouteErrorBoundary>} />
           <Route path="/community" element={<RouteErrorBoundary sectionName="Community"><BulletinPage /></RouteErrorBoundary>} />
+          <Route path="/smart-groups" element={<RouteErrorBoundary sectionName="Smart Groups"><BulletinPage /></RouteErrorBoundary>} />
           <Route path="/categories" element={<RouteErrorBoundary sectionName="Categories"><CategoriesPage /></RouteErrorBoundary>} />
           <Route path="/category/:category" element={<RouteErrorBoundary sectionName="Category"><CategoryGroupPage /></RouteErrorBoundary>} />
           <Route path="/explore/:hubId" element={<RouteErrorBoundary sectionName="Explore"><GuidedDiscoveryHubPage /></RouteErrorBoundary>} />
@@ -758,6 +761,8 @@ function AppRoutes() {
           <Route path="/seller/orders" element={<Navigate to="/orders" replace />} />
           <Route path="/seller/orders/:id" element={<ProtectedRoute><RouteErrorBoundary sectionName="Order Details"><OrderDetailPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/seller/messages" element={<RouteErrorBoundary sectionName="Seller Messages"><SellerMessagesPage /></RouteErrorBoundary>} />
+          <Route path="/messages" element={<ProtectedRoute><RouteErrorBoundary sectionName="Messages"><MessagesPage /></RouteErrorBoundary></ProtectedRoute>} />
+          <Route path="/messages/:conversationId" element={<ProtectedRoute><RouteErrorBoundary sectionName="Conversation"><ConversationThreadPage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><RouteErrorBoundary sectionName="Profile"><ProfilePage /></RouteErrorBoundary></ProtectedRoute>} />
           <Route path="/account" element={<Navigate to="/profile" replace />} />
           <Route path="/profile/edit" element={<ProtectedRoute><RouteErrorBoundary sectionName="Profile Edit"><ProfileEditPage /></RouteErrorBoundary></ProtectedRoute>} />

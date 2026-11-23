@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Users, Plus, Loader2, Phone, Trash2, User } from 'lucide-react';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { SocietyEmptyState, SocietyModuleHero } from '@/components/society/SocietyModuleHero';
 
 interface AuthorizedPerson {
   id: string;
@@ -101,14 +102,18 @@ export default function AuthorizedPersonsPage() {
     <AppLayout headerTitle="Authorized Persons" showLocation={false}>
       <FeatureGate feature={["visitor_management", "authorized_persons"]}>
       <div className="p-4 space-y-4">
-        <p className="text-xs text-muted-foreground">
-          Family members and trusted individuals authorized for gate entry without OTP.
-        </p>
-
-        <Drawer open={sheetOpen} onOpenChange={setSheetOpen}>
-          <DrawerTrigger asChild>
-            <Button size="sm" className="gap-1"><Plus size={14} /> Add Person</Button>
-          </DrawerTrigger>
+        <SocietyModuleHero
+          eyebrow="Family gate list"
+          title={persons.filter(p => p.is_active).length}
+          subtitle="Trusted people who can enter without a visitor OTP"
+          icon={Users}
+          action={
+            <Drawer open={sheetOpen} onOpenChange={setSheetOpen}>
+              <DrawerTrigger asChild>
+                <Button size="sm" className="rounded-xl bg-white text-primary hover:bg-white/90">
+                  <Plus size={14} className="mr-1" /> Add person
+                </Button>
+              </DrawerTrigger>
           <DrawerContent>
             <DrawerHeader><DrawerTitle>Add Authorized Person</DrawerTitle></DrawerHeader>
             <div className="space-y-4 px-4 pb-6">
@@ -131,17 +136,19 @@ export default function AuthorizedPersonsPage() {
               </Button>
             </div>
           </DrawerContent>
-        </Drawer>
+            </Drawer>
+          }
+        />
 
         {persons.filter(p => p.is_active).length === 0 ? (
-          <div className="text-center py-16 text-muted-foreground">
-            <Users className="mx-auto mb-3" size={40} />
-            <p className="text-sm">No authorized persons added yet</p>
-            <p className="text-xs mt-1">Add family members so they can enter the gate without OTP</p>
-          </div>
+          <SocietyEmptyState
+            icon={Users}
+            title="No authorized people yet"
+            description="Add family, drivers, or caretakers so the gate lets them in without a visitor OTP."
+          />
         ) : (
           persons.filter(p => p.is_active).map(p => (
-            <Card key={p.id}>
+            <Card key={p.id} className="border-0 shadow-card rounded-2xl">
               <CardContent className="p-3 flex items-center gap-3">
                 {p.photo_url ? (
                   <img src={p.photo_url} alt="" className="w-10 h-10 rounded-full object-cover" />

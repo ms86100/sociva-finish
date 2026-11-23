@@ -33,9 +33,10 @@ interface WhatsAppUpdatesCtaProps {
 function audienceCopy(audience: WhatsAppUpdatesCtaProps['audience']) {
   if (audience === 'seller') {
     return {
-      title: 'Get WhatsApp order alerts',
-      description: 'Send Hi to Sociva so we can text you new orders and status updates on WhatsApp.',
-      cta: 'Send Hi for WhatsApp alerts',
+      title: 'Manage orders on WhatsApp',
+      description:
+        'Send Hi to Sociva to accept, prepare, mark ready, and complete orders from WhatsApp without opening the app for every order. You can turn this off anytime.',
+      cta: 'Enable WhatsApp order management',
     };
   }
   if (audience === 'buyer') {

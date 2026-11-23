@@ -57,6 +57,7 @@ import AdminTestScenariosTab from '@/components/admin/AdminTestScenariosTab';
 import { useAdminData } from '@/hooks/useAdminData';
 import { useAdminFinancialPendingCount } from '@/hooks/useFinancialControls';
 import { AdminUsersTab } from '@/components/admin/AdminUsersTab';
+import { AdminSocietiesTab } from '@/components/admin/AdminSocietiesTab';
 import { supabase } from '@/integrations/supabase/client';
 import { adminNotify } from '@/lib/admin-notify';
 import { motion } from 'framer-motion';
@@ -110,9 +111,30 @@ export default function AdminPage() {
       <div className="pb-8">
         {/* ═══ HEADER ═══ */}
         <div className="px-4 pt-5 pb-4 space-y-3">
-          <motion.div initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4 }} className="min-w-0">
-            <h1 className="text-2xl font-extrabold text-foreground tracking-tight">Dashboard</h1>
-            <p className="text-xs text-muted-foreground mt-0.5 font-medium">Platform overview & management</p>
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35 }}
+            className="relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-gradient-to-br from-slate-900 via-primary to-emerald-700 p-5 text-white shadow-lg shadow-primary/20"
+          >
+            <div className="pointer-events-none absolute -right-8 -top-10 h-36 w-36 rounded-full bg-white/15 blur-2xl" />
+            <div className="pointer-events-none absolute -bottom-12 left-8 h-28 w-28 rounded-full bg-emerald-300/20 blur-2xl" />
+            <p className="relative text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">Command deck</p>
+            <h1 className="relative mt-1.5 text-2xl font-extrabold tracking-tight">Platform Admin</h1>
+            <p className="relative mt-1 text-sm text-white/80">Sellers, societies, payments, and live ops</p>
+            <div className="relative mt-4 grid grid-cols-4 gap-2">
+              {[
+                { label: 'Users', value: admin.stats.users },
+                { label: 'Sellers', value: admin.stats.sellers },
+                { label: 'Societies', value: admin.stats.societies },
+                { label: 'Reports', value: admin.stats.pendingReports },
+              ].map((tile) => (
+                <div key={tile.label} className="rounded-2xl bg-white/12 px-2 py-2.5 backdrop-blur">
+                  <p className="text-lg font-bold tabular-nums leading-none">{tile.value}</p>
+                  <p className="mt-1 text-[10px] text-white/75">{tile.label}</p>
+                </div>
+              ))}
+            </div>
           </motion.div>
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild size="sm" variant="outline" className="gap-1.5 shrink-0">
@@ -175,53 +197,11 @@ export default function AdminPage() {
           )}
 
           {admin.activeTab === 'societies' && (
-            <div className="space-y-3">
-              <SectionHeader icon={Building2} title="Societies" count={admin.allSocieties.length} color="bg-cyan-500/10 text-cyan-600"
-                action={<Badge variant="outline" className="text-xs rounded-lg font-semibold">{admin.allSocieties.filter(s => !s.is_verified).length} pending</Badge>} />
-              {admin.allSocieties.map((soc) => (
-                <motion.div key={soc.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-                  <Card className="border-0 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-md)] transition-all duration-300 rounded-2xl">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className={cn('w-3 h-3 rounded-full shrink-0 ring-4', soc.is_verified ? 'bg-emerald-500 ring-emerald-500/20' : 'bg-amber-400 ring-amber-400/20')} />
-                          <div>
-                            <p className="font-bold text-sm">{soc.name}</p>
-                            <p className="text-xs text-muted-foreground">{[soc.city, soc.state, soc.pincode].filter(Boolean).join(', ')}</p>
-                            <div className="flex items-center gap-2 mt-1.5">
-                              <Badge variant="secondary" className="text-[10px] h-5 rounded-md font-semibold">{soc.member_count} members</Badge>
-                              <Badge variant={soc.is_verified ? 'default' : 'outline'} className="text-[10px] h-5 rounded-md">{soc.is_verified ? '✓ Verified' : 'Pending'}</Badge>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex gap-2 shrink-0">
-                          {!soc.is_verified && (
-                            <>
-                              <Button size="sm" variant="outline" className="text-destructive h-9 w-9 p-0 rounded-xl" onClick={() => admin.updateSocietyStatus(soc.id, false, false)}><X size={14} /></Button>
-                              <Button size="sm" className="h-9 w-9 p-0 rounded-xl" onClick={() => admin.updateSocietyStatus(soc.id, true, true)}><Check size={14} /></Button>
-                            </>
-                          )}
-                          {soc.is_verified && <Switch checked={soc.is_active} onCheckedChange={(active) => admin.updateSocietyStatus(soc.id, true, active)} />}
-                        </div>
-                      </div>
-                      {soc.is_verified && (
-                        <div className="mt-3 pt-3 border-t border-border/30 flex items-center gap-2">
-                          <span className="text-[11px] text-muted-foreground font-medium">Invite Code:</span>
-                          {soc.invite_code ? (
-                            <div className="flex items-center gap-2">
-                              <code className="text-xs bg-muted px-3 py-1 rounded-lg font-mono font-bold tracking-[0.2em]">{soc.invite_code}</code>
-                              <Button size="sm" variant="ghost" className="h-7 text-[10px] px-2 text-destructive rounded-lg" onClick={async () => { await supabase.from('societies').update({ invite_code: null }).eq('id', soc.id); admin.fetchData(); adminNotify.success('Invite code removed'); }}>Remove</Button>
-                            </div>
-                          ) : (
-                            <Button size="sm" variant="outline" className="h-7 text-[10px] px-3 rounded-lg" onClick={async () => { const code = Math.random().toString(36).substring(2, 8).toUpperCase(); await supabase.from('societies').update({ invite_code: code }).eq('id', soc.id); admin.fetchData(); adminNotify.success(`Invite code generated: ${code}`); }}>Generate Code</Button>
-                          )}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
+            <AdminSocietiesTab
+              societies={admin.allSocieties}
+              onUpdateStatus={admin.updateSocietyStatus}
+              onRefresh={admin.fetchData}
+            />
           )}
 
           {admin.activeTab === 'disputes' && <AdminDisputesTab />}
@@ -479,9 +459,17 @@ export default function AdminPage() {
 /* ── Empty State ── */
 function EmptyState({ message }: { message: string }) {
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-14 h-14 rounded-2xl bg-muted/80 flex items-center justify-center mb-3"><ShieldCheck size={22} className="text-muted-foreground/60" /></div>
-      <p className="text-sm text-muted-foreground font-medium">{message}</p>
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="relative overflow-hidden rounded-[1.75rem] border border-border/60 bg-gradient-to-br from-card via-background to-secondary/50 px-5 py-14 text-center shadow-card"
+    >
+      <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-primary/10 blur-2xl" />
+      <div className="relative mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
+        <ShieldCheck size={22} className="text-primary" />
+      </div>
+      <p className="relative text-sm font-semibold text-foreground">{message}</p>
+      <p className="relative mx-auto mt-1 max-w-[240px] text-xs text-muted-foreground">Nothing queued here yet. New items land as soon as they need a decision.</p>
     </motion.div>
   );
 }

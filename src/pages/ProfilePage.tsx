@@ -26,7 +26,10 @@ import {
   Camera,
   Repeat,
   Building2,
+  MessageCircle,
 } from 'lucide-react';
+import { useConversationsUnreadCount } from '@/hooks/useConversations';
+import { useEffectiveFeatures } from '@/hooks/useEffectiveFeatures';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { NotificationHealthCheck } from '@/components/notifications/NotificationHealthCheck';
 import { PermissionCenter } from '@/components/permissions/PermissionCenter';
@@ -49,6 +52,9 @@ export default function ProfilePage() {
   const societyEntryVisible = useSocietyEntryVisible();
   const { theme, setTheme } = useTheme();
   const { showFeedback } = useFeedbackPopup();
+  const { isFeatureEnabled } = useEffectiveFeatures();
+  const conversationsOn = isFeatureEnabled('conversations');
+  const { data: messagesUnread = 0 } = useConversationsUnreadCount(conversationsOn);
   const [isEditingAvatar, setIsEditingAvatar] = useState(false);
   const [showOnboardingFeedback, setShowOnboardingFeedback] = useState(false);
   const [isSigningOut, setIsSigningOutLocal] = useState(false);
@@ -131,6 +137,13 @@ export default function ProfilePage() {
 
   const menuItems = [
     ...(societyEntryVisible ? [{ icon: Building2, label: 'My Society', to: '/society' }] : []),
+    ...(conversationsOn
+      ? [{
+          icon: MessageCircle,
+          label: messagesUnread > 0 ? `Messages (${messagesUnread})` : 'Messages',
+          to: '/messages',
+        }]
+      : []),
     ...(isBuilderMember
       ? [{ icon: Building2, label: 'Builder Dashboard', to: '/builder' }]
       : []),

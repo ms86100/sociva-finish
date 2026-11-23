@@ -1,10 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+/* cors: use corsHeadersFor(req) */
 
 /**
  * Per-order acceptance expiry worker.
@@ -13,8 +10,9 @@ const corsHeaders = {
  * cancels that order by id via expire_unaccepted_order (O(1)).
  */
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
   try {

@@ -1,5 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
+import {
+  isCronSecretRequest,
+  isServiceRoleRequest,
+} from "../_shared/worker-auth.ts";
 import {
   DEFAULT_FOOD_DISCOVERY_CONFIG,
   FOOD_DISCOVERY_SOURCE,
@@ -16,17 +21,14 @@ import {
   type RecentDiscoverySend,
 } from "../_shared/food-discovery.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-cron-secret",
-};
+/* cors: use corsHeadersFor(req) */
 
-function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+function makeJson(corsHeaders: Record<string, string>) {
+  return (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 }
 
 function asNumber(value: unknown): number | null {
@@ -64,19 +66,19 @@ function mapProduct(row: Record<string, unknown>): DiscoveryProduct | null {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const corsHeaders = corsHeadersFor(req);
+  const json = makeJson(corsHeaders);
+  if (req.method === "OPTIONS") {
+    return handleCorsPreflight(req);
+  }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
 
   const authHeader = req.headers.get("Authorization") || "";
-  const isService = authHeader === `Bearer ${serviceKey}`;
-  const incomingCron = req.headers.get("x-cron-secret") || "";
-  const envCron = Deno.env.get("CRON_SECRET") || "";
-  const isCron = incomingCron.length > 0 && (
-    (envCron.length > 0 && incomingCron === envCron) || incomingCron.length >= 32
-  );
+  const isService = isServiceRoleRequest(req, serviceKey);
+  const isCron = isCronSecretRequest(req);
 
   const adminClient = createClient(supabaseUrl, serviceKey);
   let isAdmin = false;

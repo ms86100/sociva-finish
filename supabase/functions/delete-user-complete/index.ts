@@ -1,14 +1,11 @@
 // One-shot: delete storage objects for a user folder. POST { userId, buckets }
 // Audit P0: require service_role or admin - never unauthenticated.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const cors = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
+  const cors = corsHeadersFor(req);
+  if (req.method === 'OPTIONS') return handleCorsPreflight(req);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;

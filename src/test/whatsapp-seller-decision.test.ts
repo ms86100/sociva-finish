@@ -3,6 +3,7 @@ import {
   buildSellerWhatsAppCard,
   isDeliveryCodeMessage,
   parseSellerOrderDecision,
+  parseSellerTextDecision,
   parseSellerWhatsAppAction,
   sellerDecisionButtonIds,
   sellerReminderDue,
@@ -36,6 +37,19 @@ describe('seller WhatsApp order actions', () => {
     expect(isDeliveryCodeMessage('12 34')).toBe(false);
   });
 
+  it('parses exact ACCEPT / REJECT text with optional order ref', () => {
+    expect(parseSellerTextDecision('ACCEPT')).toEqual({
+      decision: 'accept',
+      orderRef: null,
+    });
+    expect(parseSellerTextDecision('reject #66F74F')).toEqual({
+      decision: 'reject',
+      orderRef: '66F74F',
+    });
+    expect(parseSellerTextDecision('I accept this')).toBeNull();
+    expect(parseSellerTextDecision('accept please')).toBeNull();
+  });
+
   it('keeps button labels short and the card specific', () => {
     expect(sellerStepLabel('preparing').length).toBeLessThanOrEqual(20);
     const card = buildSellerWhatsAppCard({
@@ -61,7 +75,8 @@ describe('seller WhatsApp order actions', () => {
       `sociva_seller_accept:${ORDER}`,
       `sociva_seller_reject:${ORDER}`,
     ]);
-    expect(card.text).toContain('Tap Accept or Reject');
+    expect(card.text).toContain('Reply ACCEPT or REJECT');
+    expect(card.text).toContain('#EF6084');
     expect(card.text).not.toMatch(/\u2013|\u2014/);
   });
 

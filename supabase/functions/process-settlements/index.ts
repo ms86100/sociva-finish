@@ -1,15 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 import { getRazorpayCredentials, getCredential } from "../_shared/credentials.ts";
 import {
   checkFinancialRuntime,
   financialRuntimeUnavailableResponse,
 } from "../_shared/financial-runtime.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+/* cors: use corsHeadersFor(req) */
 
 /**
  * Create a Razorpay Route transfer to a linked account.
@@ -110,6 +107,10 @@ async function createRouteTransfer(opts: {
  * - Never marks settled without razorpay_transfer_id.
  */
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
+  if (req.method === "OPTIONS") {
+    return handleCorsPreflight(req);
+  }
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

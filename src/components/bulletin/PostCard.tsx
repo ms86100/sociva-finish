@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { useState } from 'react';
 import { formatDistanceToNow } from 'date-fns';
-import { ArrowBigUp, MessageCircle, Pin, MapPin, Calendar, Users, Flag, Archive, Trash2, MoreVertical } from 'lucide-react';
+import { ArrowBigUp, MessageCircle, Pin, MapPin, Calendar, Users, Flag, Archive, Trash2, MoreVertical, Star, Sparkles } from 'lucide-react';
 import { ReportSheet } from '@/components/report/ReportSheet';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import toast from 'sonner';
 import { CATEGORY_CONFIG } from './CategoryFilter';
 import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { IssueMeter } from './IssueMeter';
+import { getConvertedSnagId, isMeterCategory } from '@/lib/community-issue';
 
 export interface BulletinPost {
   id: string;
@@ -33,6 +35,12 @@ export interface BulletinPost {
   ai_summary: string | null;
   created_at: string;
   updated_at: string;
+  expires_at?: string | null;
+  structured?: any;
+  intent?: string | null;
+  service_category?: string | null;
+  status?: string | null;
+  recommendation_count?: number | null;
   author?: { name: string; block: string; flat_number: string; avatar_url: string | null };
   user_has_voted?: boolean;
 }
@@ -90,6 +98,25 @@ export function PostCard({ post, onUpvote, onOpen, onRefresh }: PostCardProps) {
             <CatIcon size={10} />
             {cat.label}
           </Badge>
+          {post.service_category && (
+            <Badge variant="secondary" className="text-[10px] shrink-0 capitalize">
+              {post.service_category.replace(/_/g, ' ')}
+            </Badge>
+          )}
+          {post.status === 'closed' && (
+            <Badge variant="outline" className="text-[10px] shrink-0">Closed</Badge>
+          )}
+          {post.status === 'expired' && (
+            <Badge variant="outline" className="text-[10px] shrink-0 text-muted-foreground">Expired</Badge>
+          )}
+          {getConvertedSnagId(post.structured) && (
+            <Badge variant="secondary" className="text-[10px] shrink-0">Issue opened</Badge>
+          )}
+          {post.ai_summary && (
+            <Badge variant="outline" className="text-[10px] shrink-0 gap-0.5">
+              <Sparkles size={9} /> Summary
+            </Badge>
+          )}
           {post.is_pinned && (
             <Pin size={12} className="text-primary shrink-0 fill-primary" />
           )}
@@ -105,6 +132,10 @@ export function PostCard({ post, onUpvote, onOpen, onRefresh }: PostCardProps) {
       {/* Body preview */}
       {post.body && (
         <p className="text-xs text-muted-foreground line-clamp-2">{post.body}</p>
+      )}
+
+      {(isMeterCategory(post.category) || getConvertedSnagId(post.structured)) && (
+        <IssueMeter post={post} compact stopPropagation />
       )}
 
       {/* Attachment preview */}
@@ -179,6 +210,12 @@ export function PostCard({ post, onUpvote, onOpen, onRefresh }: PostCardProps) {
             <MessageCircle size={14} />
             {post.comment_count}
           </span>
+          {(post.recommendation_count || 0) > 0 && (
+            <span className="flex items-center gap-1 text-xs text-warning">
+              <Star size={14} />
+              {post.recommendation_count}
+            </span>
+          )}
           {user ? (
             <button
               className="text-muted-foreground hover:text-destructive transition-colors"

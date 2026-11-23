@@ -79,6 +79,7 @@ function resolveKey(url: string): string {
 export const SUPABASE_URL = resolveUrl();
 export const SUPABASE_PUBLISHABLE_KEY = resolveKey(SUPABASE_URL);
 export const APP_ENV = isStagingBuild ? 'staging' : 'production';
+export const IS_STAGING_SUPABASE = SUPABASE_URL.includes(STAGING_REF);
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";

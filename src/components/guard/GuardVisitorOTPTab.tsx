@@ -1,15 +1,14 @@
 // @ts-nocheck
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { IS_STAGING_SUPABASE, supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmAction } from '@/components/ui/confirm-action';
 import { ImageUpload } from '@/components/ui/image-upload';
-import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { Shield, Search, CheckCircle, XCircle, User, Phone, Car, Clock, Loader2 } from 'lucide-react';
 
 interface VerifiedVisitor {
@@ -73,7 +72,9 @@ export function GuardVisitorOTPTab({ societyId }: Props) {
   const handleAllowEntry = async () => {
     if (!verifiedVisitor) return;
     setIsAllowing(true);
-    const { error } = await supabase.from('visitor_entries')
+    const { error } = IS_STAGING_SUPABASE
+      ? await supabase.rpc('visitor_guard_redeem_otp' as never, { _otp_code: otpInput.trim() } as never)
+      : await supabase.from('visitor_entries')
       .update({ 
         status: 'checked_in', 
         checked_in_at: new Date().toISOString(),
@@ -82,7 +83,6 @@ export function GuardVisitorOTPTab({ societyId }: Props) {
       .eq('id', verifiedVisitor.id);
 
     if (!error) {
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: `${verifiedVisitor.visitor_name} checked in`,
         variant: 'success'
@@ -107,39 +107,38 @@ export function GuardVisitorOTPTab({ societyId }: Props) {
   };
 
   return (
-    <div className="space-y-6">
-      <Card className="border-2 border-primary/30">
-        <CardContent className="p-6 space-y-4">
-          <div className="text-center">
-            <Shield className="mx-auto text-primary mb-2" size={40} />
-            <h2 className="text-xl font-bold">Verify Visitor OTP</h2>
-            <p className="text-sm text-muted-foreground">Enter the 6-digit OTP shared by the resident</p>
+    <div className="space-y-5">
+      <div className="relative overflow-hidden rounded-[1.75rem] border border-primary/15 bg-gradient-to-br from-primary via-primary/85 to-emerald-800 p-6 text-primary-foreground shadow-lg shadow-primary/20">
+        <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/15 blur-2xl" />
+        <div className="relative text-center">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15">
+            <Shield size={28} />
           </div>
-
-          <Input
-            value={otpInput}
-            onChange={e => {
-              const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-              setOtpInput(val);
-              if (val.length < 6) setVerificationStatus('idle');
-            }}
-            placeholder="Enter 6-digit OTP"
-            className="text-center text-3xl font-mono tracking-[0.5em] h-16"
-            maxLength={6}
-            inputMode="numeric"
-          />
-
-          <Button
-            onClick={handleVerifyOTP}
-            disabled={otpInput.length !== 6 || isVerifying}
-            className="w-full h-14 text-lg"
-            size="lg"
-          >
-            {isVerifying ? <Loader2 size={20} className="mr-2 animate-spin" /> : <Search size={20} className="mr-2" />}
-            {isVerifying ? 'Verifying...' : 'Verify OTP'}
-          </Button>
-        </CardContent>
-      </Card>
+          <h2 className="text-xl font-bold">Gate OTP</h2>
+          <p className="mt-1 text-sm text-primary-foreground/80">Enter the 6-digit code from the resident</p>
+        </div>
+        <Input
+          value={otpInput}
+          onChange={e => {
+            const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+            setOtpInput(val);
+            if (val.length < 6) setVerificationStatus('idle');
+          }}
+          placeholder="------"
+          className="mt-5 h-16 rounded-2xl border-0 bg-white text-center font-mono text-3xl tracking-[0.45em] text-foreground"
+          maxLength={6}
+          inputMode="numeric"
+        />
+        <Button
+          onClick={handleVerifyOTP}
+          disabled={otpInput.length !== 6 || isVerifying}
+          className="mt-4 h-12 w-full rounded-xl bg-white text-base font-semibold text-primary hover:bg-white/90"
+          size="lg"
+        >
+          {isVerifying ? <Loader2 size={20} className="mr-2 animate-spin" /> : <Search size={20} className="mr-2" />}
+          {isVerifying ? 'Verifying...' : 'Verify OTP'}
+        </Button>
+      </div>
 
       {verificationStatus === 'failed' && (
         <Card className="border-destructive/50 bg-destructive/5">

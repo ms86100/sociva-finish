@@ -1,20 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
 import { createRetellWebCall, getRetellAgentId, getRetellApiKey } from "../_shared/retell.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+/* cors: use corsHeadersFor(req) */
 
 const MAX_PER_PHONE_PER_HOUR = 8;
 const MAX_PER_IP_PER_HOUR = 8;
 
-function json(status: number, body: Record<string, unknown>) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+function makeJson(corsHeaders: Record<string, string>) {
+  return (status: number, body: Record<string, unknown>) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 }
 
 function normalizeIndianPhone(input: string): string {
@@ -41,8 +40,10 @@ async function sha256Hex(value: string): Promise<string> {
 }
 
 serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
+  const json = makeJson(corsHeaders);
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
   if (req.method !== "POST") {
     return json(405, { error: "Method not allowed" });
@@ -137,7 +138,7 @@ serve(async (req) => {
       });
     }
 
-    try {
+  try {
       const call = await createRetellWebCall({
         apiKey,
         agentId,

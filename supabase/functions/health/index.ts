@@ -1,20 +1,18 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
 /**
  * Public health: status only.
  * Detailed telemetry requires service-role bearer (cron/ops).
  */
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
+
+  const cors = corsHeadersFor(req);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -22,10 +20,14 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
 
     const authHeader = req.headers.get("Authorization") || "";
+    const bearer = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const detailSecret = (Deno.env.get("HEALTH_DETAIL_SECRET") || "").trim();
     const isService =
-      !!serviceKey && authHeader === `Bearer ${serviceKey}`;
+      (!!serviceKey &&
+        (authHeader === `Bearer ${serviceKey}` || bearer === serviceKey)) ||
+      (!!detailSecret &&
+        (authHeader === `Bearer ${detailSecret}` || bearer === detailSecret));
 
-    // Cheap DB ping for everyone
     const dbStart = Date.now();
     const { error: dbError } = await supabase
       .from("societies")
@@ -41,7 +43,7 @@ Deno.serve(async (req) => {
           checked_at: new Date().toISOString(),
         }),
         {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...cors, "Content-Type": "application/json" },
         },
       );
     }
@@ -92,6 +94,63 @@ Deno.serve(async (req) => {
     }
     checks.table_counts = counts;
     checks.auth = "ok";
+
+    const { count: nqPending } = await supabase
+      .from("notification_queue")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending");
+    checks.notification_queue_pending = nqPending || 0;
+
+    const { data: oldestPending } = await supabase
+      .from("notification_queue")
+      .select("created_at")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (oldestPending?.created_at) {
+      const ageMs = Date.now() - new Date(oldestPending.created_at).getTime();
+      checks.notification_queue_oldest_pending_age_sec = Math.max(
+        0,
+        Math.floor(ageMs / 1000),
+      );
+    } else {
+      checks.notification_queue_oldest_pending_age_sec = 0;
+    }
+
+    // Redis via vault/admin_settings (Upstash REST). Self-contained so health
+    // can deploy without bundling every shared module.
+    try {
+      const { data: url } = await supabase.rpc("get_edge_credential", {
+        p_key: "upstash_redis_rest_url",
+      });
+      const { data: token } = await supabase.rpc("get_edge_credential", {
+        p_key: "upstash_redis_rest_token",
+      });
+      const redisUrl =
+        typeof url === "string" ? url.trim().replace(/\/$/, "") : "";
+      const redisToken = typeof token === "string" ? token.trim() : "";
+      checks.redis_configured = !!(redisUrl && redisToken);
+      if (!checks.redis_configured) {
+        checks.redis = "not_configured";
+      } else {
+        const pingRes = await fetch(`${redisUrl}/ping`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${redisToken}` },
+        });
+        const pingBody = await pingRes.json().catch(() => ({}));
+        checks.redis =
+          String((pingBody as { result?: unknown }).result || "").toUpperCase() ===
+          "PONG"
+            ? "ok"
+            : "error";
+      }
+    } catch (redisErr) {
+      checks.redis_configured = false;
+      checks.redis = "error";
+      checks.redis_error = (redisErr as Error).message;
+    }
+
     checks.status =
       checks.db === "ok" &&
       checks.trigger_errors_24h === 0 &&
@@ -101,14 +160,14 @@ Deno.serve(async (req) => {
     checks.checked_at = new Date().toISOString();
 
     return new Response(JSON.stringify(checks, null, 2), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...cors, "Content-Type": "application/json" },
     });
   } catch (err) {
     return new Response(
       JSON.stringify({ status: "error", error: (err as Error).message }),
       {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...cors, "Content-Type": "application/json" },
       },
     );
   }

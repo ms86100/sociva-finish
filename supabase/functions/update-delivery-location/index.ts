@@ -1,10 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+let corsHeaders: Record<string, string> = {};
 
 /** Haversine distance in meters */
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -118,8 +116,9 @@ const LA_ETA_DELTA_MIN = 1;
 const LA_STALE_RETRY_MS = 60_000;
 
 serve(async (req) => {
+  corsHeaders = corsHeadersFor(req);
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
   const fnStartMs = Date.now();

@@ -284,7 +284,8 @@ export function resolveBackFallback(pathname: string): string {
   if (path.startsWith('/notifications/inbox')) return '/';
   if (path.startsWith('/talk-to-sociva')) return '/become-seller';
   if (path.startsWith('/become-seller')) return '/profile';
-  if (path.startsWith('/messages')) return '/orders';
+  if (/^\/messages\/[^/]+$/.test(path)) return '/messages';
+  if (path.startsWith('/messages')) return '/profile';
   if (path === '/community-rules') return '/help';
   if (path === '/help' || path === '/discover-location') return '/';
   if (isTabRootPath(path)) return '/';

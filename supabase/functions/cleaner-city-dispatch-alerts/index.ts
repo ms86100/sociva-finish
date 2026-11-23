@@ -1,10 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, authorization",
-};
+/* cors: use corsHeadersFor(req) */
 
 function admin() {
   return createClient(
@@ -96,7 +93,11 @@ async function sendCall(callerPhone: string, otherPhone: string) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  const corsHeaders = corsHeadersFor(req);
+  if (req.method === "OPTIONS") {
+    return handleCorsPreflight(req);
+  }
+
   try {
     const auth = req.headers.get("Authorization") || "";
     const token = auth.replace(/^Bearer\s+/i, "");

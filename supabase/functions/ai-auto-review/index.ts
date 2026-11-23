@@ -1,11 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+/* cors: use corsHeadersFor(req) */
 
 const BATCH_SELLERS = 10;
 const BATCH_PRODUCTS = 20;
@@ -328,13 +325,79 @@ async function processItem(
   return true;
 }
 
+/* ── Soft Peacekeeper for bulletin compose (never hard-blocks disagreement) ── */
+const AGGRESSIVE_RE = /\b(idiot|stupid|dumb|moron|useless|pathetic|shut\s*up|wtf|bullshit|hate|disgusting|garbage|scam|fraud|liar|hell)\b|\bwhat\s+the\s+hell\b|\b(beat\s+you|kill\s+you|to\s+the\s+death|punch\s+you|i\s+will\s+(beat|kill|hurt))\b|[!?]{3,}/i;
+
+function calmRewrite(text: string): string {
+  let out = text
+    .replace(/\bidiot\b/gi, "issue")
+    .replace(/\bstupid\b/gi, "frustrating")
+    .replace(/\bdumb\b/gi, "odd")
+    .replace(/\bmoron\b/gi, "neighbour")
+    .replace(/\buseless\b/gi, "not working well")
+    .replace(/\bpathetic\b/gi, "disappointing")
+    .replace(/\bshut\s*up\b/gi, "please pause")
+    .replace(/\bwtf\b/gi, "what happened")
+    .replace(/\bbullshit\b/gi, "concern")
+    .replace(/\bhate\b/gi, "dislike")
+    .replace(/\bdisgusting\b/gi, "hard to accept")
+    .replace(/\bgarbage\b/gi, "poor quality")
+    .replace(/\bscam\b/gi, "concern")
+    .replace(/\bfraud\b/gi, "concern")
+    .replace(/\bliar\b/gi, "incorrect")
+    .replace(/[!?]{3,}/g, "!");
+  out = out.replace(/\s{2,}/g, " ").trim();
+  if (out === text.trim()) {
+    out = `I wanted to raise this calmly with neighbours: ${text.replace(/[!?]{2,}/g, ".")}`;
+  }
+  return out.trim();
+}
+
+function reviewBulletinPost(content: string) {
+  const text = (content || "").trim();
+  // Hard reject only for clear prohibited marketplace-style content in posts
+  const prohibited = /\b(buy\s+gun|sell\s+weapon|illegal\s+drugs)\b/i.test(text);
+  if (prohibited) {
+    return {
+      decision: "reject",
+      reason: "This content appears to violate community safety rules.",
+      tone: "prohibited",
+    };
+  }
+  if (AGGRESSIVE_RE.test(text)) {
+    return {
+      decision: "nudge",
+      reason: "Your message sounds frustrated.",
+      tone: "aggressive",
+      suggestion: "Use a calmer version for better neighbour responses.",
+      rewrite: calmRewrite(text),
+    };
+  }
+  return { decision: "approve", reason: "ok", tone: "neutral" };
+}
+
 /* ── Main handler ── */
 serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
   try {
+    // On-demand bulletin / compose review (Peacekeeper + light moderation)
+    let body: any = null;
+    try {
+      body = await req.json();
+    } catch {
+      body = null;
+    }
+    if (body?.target_type === "bulletin_post" && typeof body.content === "string") {
+      const result = reviewBulletinPost(body.content);
+      return new Response(JSON.stringify(result), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const db = serviceClient();
 
     // Fetch pending sellers

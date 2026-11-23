@@ -1,21 +1,16 @@
 import { Hono } from "https://deno.land/x/hono@v4.3.11/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
 import { getRazorpayCredentials } from "../_shared/credentials.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
 const app = new Hono();
 
 // Handle CORS preflight
-app.options("*", (c) => {
-  return c.json({}, 200, corsHeaders);
-});
+app.options("*", (c) => handleCorsPreflight(c.req.raw));
 
 // Auto-cancel expired urgent orders
 app.post("/", async (c) => {
+  const corsHeaders = corsHeadersFor(c.req.raw);
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

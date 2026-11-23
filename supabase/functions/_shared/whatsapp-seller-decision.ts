@@ -1,7 +1,8 @@
 /**
  * Seller order actions on a personal WhatsApp chat.
  * A button id can move one legal next step. A 4-digit code can complete delivery.
- * Any other text, including "accept" or "Perfect", does nothing.
+ * Exact ACCEPT / REJECT (optional order ref) also decides when buttons never show.
+ * Other free text, including "Perfect", does nothing.
  */
 
 const UUID = "([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})";
@@ -41,18 +42,18 @@ export type SellerWaCard = {
 };
 
 const STEP_LABEL: Record<string, string> = {
-  accepted: "Accept",
+  accepted: "ACCEPT ORDER",
   confirmed: "Confirm",
   scheduled: "Schedule",
-  preparing: "Start preparing",
-  ready: "Mark ready",
-  ready_for_pickup: "Ready to pick up",
+  preparing: "START PREPARING",
+  ready: "MARK READY",
+  ready_for_pickup: "Ready pickup",
   picked_up: "Picked up",
   on_the_way: "On the way",
   out_for_delivery: "Out for delivery",
   arrived: "Reached",
   at_gate: "At the gate",
-  completed: "Mark done",
+  completed: "COMPLETE ORDER",
 };
 
 const STATUS_WORD: Record<string, string> = {
@@ -126,6 +127,25 @@ export function parseSellerWhatsAppAction(
 /** Delivery codes are exactly 4 digits. Anything else is not an OTP. */
 export function isDeliveryCodeMessage(text: string | null | undefined): boolean {
   return /^[0-9]{4}$/.test(String(text || "").trim());
+}
+
+/**
+ * Strict whole-message ACCEPT / REJECT. Optional trailing order ref (#66F74F).
+ * Avoids matching chat like "I accept this later".
+ */
+export function parseSellerTextDecision(
+  text: string | null | undefined,
+): { decision: "accept" | "reject"; orderRef: string | null } | null {
+  const raw = String(text || "")
+    .replace(/[\u2013\u2014]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  const m = raw.match(/^(accept|reject)(?:\s+#?([0-9a-f]{6}))?$/i);
+  if (!m) return null;
+  return {
+    decision: m[1].toLowerCase() as "accept" | "reject",
+    orderRef: m[2] ? m[2].toUpperCase() : null,
+  };
 }
 
 function clean(value: string | null | undefined): string {
@@ -202,11 +222,11 @@ export function buildSellerWhatsAppCard(
     ["placed", "enquired", "requested", "quoted"].includes(status);
   if (ctx.terminal) {
     lines.push(`${word}. The buyer can see this.`);
-  } else if (waitingDecision) {
+  } else   if (waitingDecision) {
     lines.push(
       reminder
-        ? "Still waiting. Tap Accept or Reject. The buyer sees it right away."
-        : "Tap Accept or Reject. The buyer sees it right away.",
+        ? `Still waiting. Tap Accept or Reject. The buyer sees it right away.`
+        : `Tap Accept or Reject. The buyer sees it right away.`,
     );
   } else if (needsOtp) {
     lines.push(
@@ -228,8 +248,8 @@ export function buildSellerWhatsAppCard(
   const buttons: SellerWaButton[] = [];
   if (waitingDecision) {
     const ids = sellerDecisionButtonIds(ctx.order_id);
-    buttons.push({ id: ids.accept, displayText: "Accept" });
-    buttons.push({ id: ids.reject, displayText: "Reject" });
+    buttons.push({ id: ids.accept, displayText: "ACCEPT ORDER" });
+    buttons.push({ id: ids.reject, displayText: "REJECT ORDER" });
   } else if (!ctx.terminal && !needsOtp && next) {
     buttons.push({
       id: sellerStepButtonId(ctx.order_id, next),

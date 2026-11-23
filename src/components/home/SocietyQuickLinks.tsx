@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { useEffectiveFeatures, type FeatureKey } from '@/hooks/useEffectiveFeatures';
 import { useAuth } from '@/contexts/AuthContext';
 import {
-  Users, Car, IndianRupee, MessageCircle, Wrench, ShieldAlert, ChevronRight, Building2,
+  Users, Car, IndianRupee, MessageCircle, Wrench, ShieldAlert, ChevronRight, Building2, Sparkles,
 } from 'lucide-react';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
 import { cn } from '@/lib/utils';
@@ -17,21 +17,27 @@ interface QuickLink {
   featureKey?: FeatureKey;
 }
 
-const quickLinks: QuickLink[] = [
-  { icon: Users, label: 'Visitors', to: '/visitors', featureKey: 'visitor_management' },
-  { icon: Car, label: 'Parking', to: '/parking', featureKey: 'vehicle_parking' },
-  { icon: IndianRupee, label: 'Finances', to: '/society/finances', featureKey: 'finances' },
-  { icon: MessageCircle, label: 'Bulletin', to: '/community', featureKey: 'bulletin' },
-  { icon: Wrench, label: 'Maintenance', to: '/maintenance', featureKey: 'maintenance' },
-  { icon: ShieldAlert, label: 'Disputes', to: '/disputes', featureKey: 'disputes' },
-];
-
 export function SocietyQuickLinks() {
   const { effectiveSociety } = useAuth();
   const { isFeatureEnabled } = useEffectiveFeatures();
   const ml = useMarketplaceLabels();
+  const smartGroups = isFeatureEnabled('smart_groups');
 
   if (!effectiveSociety) return null;
+
+  const quickLinks: QuickLink[] = [
+    { icon: Users, label: 'Visitors', to: '/visitors', featureKey: 'visitor_management' },
+    { icon: Car, label: 'Parking', to: '/parking', featureKey: 'vehicle_parking' },
+    { icon: IndianRupee, label: 'Finances', to: '/society/finances', featureKey: 'finances' },
+    {
+      icon: smartGroups ? Sparkles : MessageCircle,
+      label: smartGroups ? 'Smart Groups' : 'Bulletin',
+      to: '/community',
+      featureKey: 'bulletin',
+    },
+    { icon: Wrench, label: 'Maintenance', to: '/maintenance', featureKey: 'maintenance' },
+    { icon: ShieldAlert, label: 'Disputes', to: '/disputes', featureKey: 'disputes' },
+  ];
 
   const visibleLinks = quickLinks.filter(l => !l.featureKey || isFeatureEnabled(l.featureKey));
   if (visibleLinks.length === 0) return null;

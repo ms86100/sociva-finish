@@ -14,7 +14,8 @@ import { CreateBuilderSheet } from './CreateBuilderSheet';
 import { PackageComparisonMatrix } from './PackageComparisonMatrix';
 import { SocietyFeatureAudit } from './SocietyFeatureAudit';
 import { BuilderManagementSheet } from './BuilderManagementSheet';
-import { useFeatureManagement, CATEGORIES, TIERS } from '@/hooks/useFeatureManagement';
+import { useFeatureManagement, CATEGORIES, TIERS, packageLabel } from '@/hooks/useFeatureManagement';
+import { featurePlainName, friendlyPackageLabel, PACKAGE_FLOW_COPY } from '@/lib/feature-catalog-copy';
 import { motion } from 'framer-motion';
 
 export function FeatureManagement() {
@@ -35,6 +36,10 @@ export function FeatureManagement() {
 
         {/* FEATURES TAB */}
         <TabsContent value="features" className="space-y-3 mt-4">
+          <div className="rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 p-4 text-white">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-200/80 font-semibold">How packages work</p>
+            <p className="text-xs text-white/80 mt-1.5 leading-relaxed">{PACKAGE_FLOW_COPY}</p>
+          </div>
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -65,26 +70,33 @@ export function FeatureManagement() {
             </Sheet>
           </div>
 
-          {CATEGORIES.map(cat => f.groupedFeatures[cat]?.length > 0 && (
+          {[...CATEGORIES, 'other'].map(cat => f.groupedFeatures[cat]?.length > 0 && (
             <div key={cat}>
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">{cat}</p>
               <Card className="border-0 shadow-[var(--shadow-card)] rounded-2xl"><CardContent className="p-3.5 space-y-3">
-                {f.groupedFeatures[cat].map(feat => (
-                  <div key={feat.id} className="flex items-center justify-between py-0.5">
+                {f.groupedFeatures[cat].map(feat => {
+                  const defaultPkg = f.packages.find((p) => p.is_default);
+                  const pilotPkg = f.packages.find((p) => (p.package_name || p.name || '').includes('pilot'));
+                  const inCore = !!(defaultPkg && f.allPkgItems[defaultPkg.id]?.[feat.id]);
+                  const inPilot = !!(pilotPkg && f.allPkgItems[pilotPkg.id]?.[feat.id]);
+                  return (
+                  <div key={feat.id} className="flex items-center justify-between py-0.5 gap-2">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-sm font-semibold truncate">{feat.feature_name}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-sm font-semibold truncate">{featurePlainName(feat.feature_key, feat.feature_name)}</p>
                         {feat.is_core && <Badge variant="secondary" className="text-[9px] h-4 rounded-md">Core</Badge>}
-                        {feat.is_experimental && <Badge variant="outline" className="text-[9px] h-4 rounded-md">Beta</Badge>}
+                        {inCore && <Badge variant="outline" className="text-[9px] h-4 rounded-md">Core pkg</Badge>}
+                        {inPilot && <Badge className="text-[9px] h-4 rounded-md bg-emerald-500/15 text-emerald-800 border-0">Pilot</Badge>}
                       </div>
-                      <p className="text-[10px] text-muted-foreground font-mono">{feat.feature_key}</p>
+                      <p className="text-[10px] text-muted-foreground">{feat.description || feat.feature_key}</p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       <Switch checked={feat.society_configurable} onCheckedChange={v => f.toggleFeatureField(feat.id, 'society_configurable', v)} className="scale-75" />
                       <span className="text-[9px] text-muted-foreground w-10 font-medium">Config</span>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </CardContent></Card>
             </div>
           ))}
@@ -123,27 +135,60 @@ export function FeatureManagement() {
           </div>
 
           {f.showComparison && <PackageComparisonMatrix features={f.features} packages={f.packages} packageItems={f.allPkgItems} />}
-          {f.packages.map(pkg => (
+          {f.packages.map(pkg => {
+            const enabledIds = Object.entries(f.allPkgItems[pkg.id] || {}).filter(([, on]) => on).map(([id]) => id);
+            const enabledFeats = f.features.filter((feat) => enabledIds.includes(feat.id));
+            return (
             <Card key={pkg.id} className="border-0 shadow-[var(--shadow-card)] rounded-2xl"><CardContent className="p-3.5">
-              <div className="flex items-center justify-between mb-2">
-                <div><p className="text-sm font-bold">{pkg.package_name}</p><Badge variant="outline" className="text-[9px] capitalize rounded-md">{pkg.price_tier}</Badge></div>
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <div>
+                  <p className="text-sm font-bold">{friendlyPackageLabel(packageLabel(pkg))}</p>
+                  <div className="flex gap-1.5 mt-1">
+                    <Badge variant="outline" className="text-[9px] capitalize rounded-md">{pkg.price_tier}</Badge>
+                    <Badge variant="secondary" className="text-[9px] rounded-md">{enabledFeats.length} features</Badge>
+                    {pkg.is_default && <Badge className="text-[9px] rounded-md bg-amber-500/15 text-amber-800 border-0">Default</Badge>}
+                  </div>
+                </div>
                 <Button size="sm" variant={f.editingPkg === pkg.id ? 'default' : 'outline'} className="text-xs rounded-xl font-semibold" onClick={() => f.editingPkg === pkg.id ? f.setEditingPkg(null) : f.openPackageEditor(pkg.id)}>
-                  {f.editingPkg === pkg.id ? 'Done' : 'Edit Features'}
+                  {f.editingPkg === pkg.id ? 'Done' : 'Edit features'}
                 </Button>
               </div>
               {pkg.description && <p className="text-xs text-muted-foreground mb-2">{pkg.description}</p>}
+              {pkg.is_default && (
+                <p className="text-[11px] text-amber-800 bg-amber-500/10 rounded-xl px-3 py-2 mb-2">
+                  This is already on for every society. Add visitors, parcels, parking, or guard kiosk to Pilot Ops instead.
+                </p>
+              )}
+              {f.editingPkg !== pkg.id && enabledFeats.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {enabledFeats.slice(0, 12).map((feat) => (
+                    <Badge key={feat.id} variant="secondary" className="text-[10px] rounded-md font-medium">
+                      {featurePlainName(feat.feature_key, feat.feature_name)}
+                    </Badge>
+                  ))}
+                  {enabledFeats.length > 12 && (
+                    <Badge variant="outline" className="text-[10px] rounded-md">+{enabledFeats.length - 12} more</Badge>
+                  )}
+                </div>
+              )}
               {f.editingPkg === pkg.id && (
-                <div className="border-t border-border/30 pt-3 mt-3 divide-y divide-border/20 max-h-64 overflow-y-auto">
+                <div className="border-t border-border/30 pt-3 mt-3 divide-y divide-border/20 max-h-80 overflow-y-auto">
+                  <p className="text-[11px] text-muted-foreground pb-2">Toggle a feature to add or remove it from this package. Changes apply to societies linked through the builder.</p>
                   {f.features.map(feat => (
-                    <div key={feat.id} className="flex items-center justify-between py-2.5">
-                      <div className="flex items-center gap-1.5"><span className="text-xs font-medium">{feat.feature_name}</span>{feat.is_core && <Badge variant="secondary" className="text-[8px] h-3 rounded-md">Core</Badge>}</div>
-                      <Switch checked={!!f.pkgItems[feat.id]} onCheckedChange={v => f.togglePkgItem(feat.id, v)} className="scale-75" />
+                    <div key={feat.id} className="flex items-center justify-between py-2.5 gap-2">
+                      <div className="min-w-0">
+                        <span className="text-xs font-medium">{featurePlainName(feat.feature_key, feat.feature_name)}</span>
+                        {feat.is_core && <Badge variant="secondary" className="text-[8px] h-3 rounded-md ml-1.5">Core</Badge>}
+                        <p className="text-[10px] text-muted-foreground truncate">{feat.description}</p>
+                      </div>
+                      <Switch checked={!!f.pkgItems[feat.id]} onCheckedChange={v => f.togglePkgItem(feat.id, v)} className="scale-75 shrink-0" />
                     </div>
                   ))}
                 </div>
               )}
             </CardContent></Card>
-          ))}
+            );
+          })}
           {f.packages.length === 0 && <div className="text-center text-muted-foreground py-12 text-sm font-medium">No packages yet</div>}
         </TabsContent>
 
@@ -161,8 +206,18 @@ export function FeatureManagement() {
               <Sheet open={f.assignOpen} onOpenChange={f.setAssignOpen}>
                 <SheetTrigger asChild><Button size="sm" variant="outline" className="gap-1.5 rounded-xl font-semibold"><Plus size={14} /> Assign</Button></SheetTrigger>
                 <SheetContent>
-                  <SheetHeader><SheetTitle className="font-bold">Assign Package to Builder</SheetTitle></SheetHeader>
+                  <SheetHeader><SheetTitle className="font-bold">Assign package</SheetTitle></SheetHeader>
                   <div className="mt-4 space-y-3">
+                    <p className="text-[11px] text-muted-foreground">
+                      Entitlements flow Package - Builder - Society. Assigning to a society links the builder automatically.
+                    </p>
+                    <div>
+                      <Label className="text-xs font-semibold">Package</Label>
+                      <Select value={f.assignPackage} onValueChange={f.setAssignPackage}>
+                        <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select package" /></SelectTrigger>
+                        <SelectContent>{f.packages.map(p => <SelectItem key={p.id} value={p.id}>{packageLabel(p)}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
                     <div>
                       <Label className="text-xs font-semibold">Builder</Label>
                       <Select value={f.assignBuilder} onValueChange={f.setAssignBuilder}>
@@ -171,13 +226,21 @@ export function FeatureManagement() {
                       </Select>
                     </div>
                     <div>
-                      <Label className="text-xs font-semibold">Package</Label>
-                      <Select value={f.assignPackage} onValueChange={f.setAssignPackage}>
-                        <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select package" /></SelectTrigger>
-                        <SelectContent>{f.packages.map(p => <SelectItem key={p.id} value={p.id}>{p.package_name}</SelectItem>)}</SelectContent>
+                      <Label className="text-xs font-semibold">Society (optional)</Label>
+                      <Select value={f.assignSociety} onValueChange={f.setAssignSociety}>
+                        <SelectTrigger className="rounded-xl"><SelectValue placeholder="Select society" /></SelectTrigger>
+                        <SelectContent>{f.societies.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
-                    <Button className="w-full rounded-xl h-10 font-semibold" onClick={f.assignPackageToBuilder} disabled={!f.assignBuilder || !f.assignPackage}><Check size={14} className="mr-1" /> Assign Package</Button>
+                    {f.assignSociety ? (
+                      <Button className="w-full rounded-xl h-10 font-semibold" onClick={f.assignPackageToSociety} disabled={!f.assignPackage}>
+                        <Check size={14} className="mr-1" /> Assign to society
+                      </Button>
+                    ) : (
+                      <Button className="w-full rounded-xl h-10 font-semibold" onClick={f.assignPackageToBuilder} disabled={!f.assignBuilder || !f.assignPackage}>
+                        <Check size={14} className="mr-1" /> Assign to builder
+                      </Button>
+                    )}
                   </div>
                 </SheetContent>
               </Sheet>
@@ -188,7 +251,7 @@ export function FeatureManagement() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-bold">{(a as any).builder?.name || 'Unknown Builder'}</p>
-                  <p className="text-xs text-muted-foreground">{(a as any).package?.package_name || 'Unknown Package'}</p>
+                  <p className="text-xs text-muted-foreground">{packageLabel((a as any).package || {}) || 'Unknown Package'}</p>
                   {a.expires_at && <p className="text-[10px] text-warning font-semibold">Expires: {new Date(a.expires_at).toLocaleDateString()}</p>}
                 </div>
                 <div className="flex items-center gap-1.5">

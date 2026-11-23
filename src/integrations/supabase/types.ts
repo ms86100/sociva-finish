@@ -872,6 +872,7 @@ export type Database = {
           body: string
           created_at: string
           id: string
+          is_recommendation: boolean
           parent_id: string | null
           post_id: string
           updated_at: string
@@ -881,6 +882,7 @@ export type Database = {
           body: string
           created_at?: string
           id?: string
+          is_recommendation?: boolean
           parent_id?: string | null
           post_id: string
           updated_at?: string
@@ -890,6 +892,7 @@ export type Database = {
           body?: string
           created_at?: string
           id?: string
+          is_recommendation?: boolean
           parent_id?: string | null
           post_id?: string
           updated_at?: string
@@ -911,6 +914,82 @@ export type Database = {
           },
         ]
       }
+      bulletin_post_categories: {
+        Row: {
+          post_id: string
+          category: string
+          is_primary: boolean
+          created_at: string
+        }
+        Insert: {
+          post_id: string
+          category: string
+          is_primary?: boolean
+          created_at?: string
+        }
+        Update: {
+          post_id?: string
+          category?: string
+          is_primary?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulletin_post_categories_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "bulletin_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bulletin_post_classifications: {
+        Row: {
+          id: string
+          post_id: string
+          intent: string | null
+          suggested_categories: string[]
+          service_category: string | null
+          confidence: number | null
+          match_band: string | null
+          user_corrected: boolean
+          raw_signals: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          post_id: string
+          intent?: string | null
+          suggested_categories?: string[]
+          service_category?: string | null
+          confidence?: number | null
+          match_band?: string | null
+          user_corrected?: boolean
+          raw_signals?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          post_id?: string
+          intent?: string | null
+          suggested_categories?: string[]
+          service_category?: string | null
+          confidence?: number | null
+          match_band?: string | null
+          user_corrected?: boolean
+          raw_signals?: Json
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulletin_post_classifications_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: true
+            referencedRelation: "bulletin_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bulletin_posts: {
         Row: {
           ai_summary: string | null
@@ -925,14 +1004,21 @@ export type Database = {
           expires_at: string | null
           id: string
           image_url: string | null
+          intent: string | null
           is_archived: boolean
           is_pinned: boolean
+          linked_helphub_listing_id: string | null
+          linked_product_id: string | null
           poll_deadline: string | null
           poll_end_date: string | null
           poll_options: Json | null
+          recommendation_count: number
           rsvp_enabled: boolean
           rsvp_limit: number | null
+          service_category: string | null
           society_id: string
+          status: string
+          structured: Json
           tags: string[] | null
           title: string
           type: string
@@ -953,14 +1039,21 @@ export type Database = {
           expires_at?: string | null
           id?: string
           image_url?: string | null
+          intent?: string | null
           is_archived?: boolean
           is_pinned?: boolean
+          linked_helphub_listing_id?: string | null
+          linked_product_id?: string | null
           poll_deadline?: string | null
           poll_end_date?: string | null
           poll_options?: Json | null
+          recommendation_count?: number
           rsvp_enabled?: boolean
           rsvp_limit?: number | null
+          service_category?: string | null
           society_id: string
+          status?: string
+          structured?: Json
           tags?: string[] | null
           title: string
           type?: string
@@ -981,14 +1074,21 @@ export type Database = {
           expires_at?: string | null
           id?: string
           image_url?: string | null
+          intent?: string | null
           is_archived?: boolean
           is_pinned?: boolean
+          linked_helphub_listing_id?: string | null
+          linked_product_id?: string | null
           poll_deadline?: string | null
           poll_end_date?: string | null
           poll_options?: Json | null
+          recommendation_count?: number
           rsvp_enabled?: boolean
           rsvp_limit?: number | null
+          service_category?: string | null
           society_id?: string
+          status?: string
+          structured?: Json
           tags?: string[] | null
           title?: string
           type?: string
@@ -12181,9 +12281,12 @@ export type Database = {
       get_effective_society_features: {
         Args: { _society_id: string }
         Returns: {
+          description: string
           display_name: string
           feature_key: string
+          icon_name: string
           is_enabled: boolean
+          society_configurable: boolean
           source: string
         }[]
       }

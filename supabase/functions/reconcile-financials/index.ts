@@ -1,14 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 import { getRazorpayCredentials } from "../_shared/credentials.ts";
 import {
   checkFinancialRuntime,
   financialRuntimeUnavailableResponse,
 } from "../_shared/financial-runtime.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-cron-secret, content-type",
-};
+/* cors: use corsHeadersFor(req) */
 
 async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest(
@@ -54,6 +52,10 @@ async function fetchRazorpayRows(opts: {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
+  if (req.method === "OPTIONS") {
+    return handleCorsPreflight(req);
+  }
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }

@@ -202,6 +202,18 @@ export function resolveNotificationRoute(
       return listingId ? `/help-hub/listing/${listingId}` : '/help-hub';
     }
 
+    // Sociva Conversations (neighbour DMs)
+    case 'conversation_message':
+    case 'message_request': {
+      const conversationId = payload?.conversation_id || payload?.conversationId;
+      return conversationId ? `/messages/${conversationId}` : '/messages';
+    }
+
+    case 'community_reply': {
+      const postId = payload?.post_id || payload?.postId;
+      return postId ? `/community?post=${postId}` : '/community';
+    }
+
     // Booking reminders
     case 'booking_reminder_1_hour':
     case 'booking_reminder_30_min':

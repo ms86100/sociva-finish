@@ -5,12 +5,13 @@ import {
   checkFinancialRuntime,
   financialRuntimeUnavailableResponse,
 } from "../_shared/financial-runtime.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import {
+  getPaymentGatewayMode,
+  paymentModeBlockedResponse,
+} from "../_shared/payment-gateway-mode.ts";
+import { withAuth } from "../_shared/auth.ts";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
 function parseNotesOrderIds(notes: any): string[] {
   if (!notes) return [];
@@ -25,9 +26,12 @@ function parseNotesOrderIds(notes: any): string[] {
 }
 
 serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
+
+  const cors = corsHeadersFor(req);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -40,7 +44,7 @@ serve(async (req) => {
       "payment_confirm_enabled",
     );
     if (!runtime.ready) {
-      return financialRuntimeUnavailableResponse(runtime, corsHeaders);
+      return financialRuntimeUnavailableResponse(runtime, cors);
     }
 
     // Auth: JWT buyer OR service-role (webhook/cron)
@@ -49,19 +53,22 @@ serve(async (req) => {
     let callerUserId: string | null = null;
 
     if (!isService) {
-      const { withAuth } = await import("../_shared/auth.ts");
-      const authResult = await withAuth(req, corsHeaders);
+      const authResult = await withAuth(req, cors);
       if (authResult instanceof Response) return authResult;
       callerUserId = authResult.userId;
 
+      const confirmRl = await checkRateLimit(`confirm-pay:${callerUserId}`, 20, 60, {
+        failClosed: true,
+      });
+      if (!confirmRl.allowed) {
+        return rateLimitResponse(cors, confirmRl.retryAfterSeconds);
+      }
+
       // Block new client confirms when Razorpay checkout rail is off.
       // Webhook/cron (service) may still settle in-flight Razorpay payments.
-      const { getPaymentGatewayMode, paymentModeBlockedResponse } = await import(
-        "../_shared/payment-gateway-mode.ts"
-      );
       const gatewayMode = await getPaymentGatewayMode(supabase);
       if (gatewayMode !== "razorpay") {
-        return paymentModeBlockedResponse(gatewayMode, "razorpay", corsHeaders);
+        return paymentModeBlockedResponse(gatewayMode, "razorpay", cors);
       }
     }
 
@@ -69,7 +76,7 @@ serve(async (req) => {
     if (!body) {
       return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...cors, "Content-Type": "application/json" },
       });
     }
 
@@ -84,7 +91,7 @@ serve(async (req) => {
     ) {
       return new Response(
         JSON.stringify({ error: "Missing razorpay_payment_id/razorpay_order_id or order_ids" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...cors, "Content-Type": "application/json" } }
       );
     }
 
@@ -92,7 +99,7 @@ serve(async (req) => {
     if (!creds.keyId || !creds.keySecret) {
       return new Response(JSON.stringify({ error: "Payment gateway not configured" }), {
         status: 503,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...cors, "Content-Type": "application/json" },
       });
     }
 
@@ -107,7 +114,7 @@ serve(async (req) => {
     if (seedErr || !seedOrders || seedOrders.length === 0) {
       return new Response(JSON.stringify({ error: "One or more orders not found" }), {
         status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...cors, "Content-Type": "application/json" },
       });
     }
 
@@ -129,7 +136,7 @@ serve(async (req) => {
       if (sibErr || !siblings?.length) {
         return new Response(JSON.stringify({ error: "Failed to resolve checkout group siblings" }), {
           status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...cors, "Content-Type": "application/json" },
         });
       }
       orders = siblings;
@@ -138,7 +145,7 @@ serve(async (req) => {
     } else if (seedOrders.length !== order_ids.length) {
       return new Response(JSON.stringify({ error: "One or more orders not found" }), {
         status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...cors, "Content-Type": "application/json" },
       });
     }
     orders = [...orders].sort((a: any, b: any) => String(a.id).localeCompare(String(b.id)));
@@ -149,7 +156,7 @@ serve(async (req) => {
       if (unauthorized) {
         return new Response(JSON.stringify({ error: "Forbidden" }), {
           status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...cors, "Content-Type": "application/json" },
         });
       }
     }
@@ -170,7 +177,7 @@ serve(async (req) => {
       if (!rzpResponse.ok) {
         return new Response(JSON.stringify({ error: "Payment verification failed" }), {
           status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...cors, "Content-Type": "application/json" },
         });
       }
       paymentEntity = await rzpResponse.json();
@@ -181,7 +188,7 @@ serve(async (req) => {
             status: paymentEntity.status,
             reconciliation_required: paymentEntity.status === "authorized",
           }),
-          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 409, headers: { ...cors, "Content-Type": "application/json" } }
         );
       }
     } else if (expectedRzpOrderId) {
@@ -192,7 +199,7 @@ serve(async (req) => {
       if (!rzpResponse.ok) {
         return new Response(JSON.stringify({ error: "Payment verification failed" }), {
           status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          headers: { ...cors, "Content-Type": "application/json" },
         });
       }
       const data = await rzpResponse.json();
@@ -203,14 +210,14 @@ serve(async (req) => {
       if (!paymentEntity) {
         return new Response(
           JSON.stringify({ error: "No captured payment found for this order" }),
-          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 409, headers: { ...cors, "Content-Type": "application/json" } }
         );
       }
       verifiedPaymentId = paymentEntity.id;
     } else {
       return new Response(JSON.stringify({ error: "Cannot verify payment without ID" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...cors, "Content-Type": "application/json" },
       });
     }
 
@@ -220,7 +227,7 @@ serve(async (req) => {
       console.error(`[confirm] amount mismatch paid=${paidPaise} expected=${expectedPaise} orders=${order_ids.length}`);
       return new Response(
         JSON.stringify({ error: "Payment amount does not match order total" }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 409, headers: { ...cors, "Content-Type": "application/json" } }
       );
     }
 
@@ -229,7 +236,7 @@ serve(async (req) => {
       console.error(`[confirm] razorpay_order_id mismatch`);
       return new Response(
         JSON.stringify({ error: "Payment does not belong to these orders" }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 409, headers: { ...cors, "Content-Type": "application/json" } }
       );
     }
 
@@ -243,7 +250,7 @@ serve(async (req) => {
             error: "Payment notes do not include all checkout group orders",
             missing: missingFromNotes,
           }),
-          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 409, headers: { ...cors, "Content-Type": "application/json" } }
         );
       }
     }
@@ -292,7 +299,7 @@ serve(async (req) => {
           source,
           order_ids,
         }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 409, headers: { ...cors, "Content-Type": "application/json" } },
       );
     }
 
@@ -324,13 +331,13 @@ serve(async (req) => {
         source,
         order_ids: commitData?.order_ids || order_ids,
       }),
-      { status: allOk ? 200 : 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: allOk ? 200 : 409, headers: { ...cors, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("confirm-razorpay-payment error:", error);
     return new Response(JSON.stringify({ error: String(error) }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...cors, "Content-Type": "application/json" },
     });
   }
 });

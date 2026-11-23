@@ -15,6 +15,12 @@ import {
   shouldKeepIncomingOrderAlert,
 } from '@/lib/order-alert-ack';
 import { playGateBell } from '@/lib/play-gate-bell';
+import {
+  isNativeOrderAlertRingerAvailable,
+  startNativeOrderAlert,
+  stopAllNativeOrderAlerts,
+  stopNativeOrderAlert,
+} from '@/plugins/order-alert-ringer';
 
 /** Poll / reconcile: include one-shot insert statuses so we can clear stale overlays. */
 const ACTIONABLE_STATUSES = ['placed', 'enquired', 'quoted', 'requested', 'scheduled', 'preparing', 'confirmed'] as const;
@@ -196,6 +202,10 @@ export function useNewOrderAlert(sellerIds: string[]) {
     if (!opts?.catchUp) pollDelayRef.current = MIN_POLL_MS;
     setPendingAlerts(prev => (prev.some(o => o.id === order.id) ? prev : [...prev, order]));
     noteOrderBell(order.id);
+    // Concurrent orders: start order-scoped native ring even if already buzzing.
+    if (!opts?.catchUp && isNativeOrderAlertRingerAvailable()) {
+      void startNativeOrderAlert(order.id);
+    }
     invalidateSellerOrderCaches(order.seller_id);
     if (opts?.catchUp) return;
     void scheduleIncomingOrderLocalNotification({
@@ -259,25 +269,35 @@ export function useNewOrderAlert(sellerIds: string[]) {
       try { source.stop(0); } catch { /* already stopped */ }
     }
     activeBellSourcesRef.current = [];
+    void stopAllNativeOrderAlerts();
   }, []);
 
   const startBuzzing = useCallback(() => {
     if (isBuzzingRef.current) return;
     isBuzzingRef.current = true;
     hapticNotification('warning');
-    playGateBell(pendingAlertsRef.current[0]?.id);
-    const loopBell = () => {
-      if (!isBuzzingRef.current) return;
-      // Audio / haptics while backgrounded drains battery and is blocked on many OEMs.
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        bellLoopTimerRef.current = setTimeout(loopBell, 3000);
-        return;
+    const topId = pendingAlertsRef.current[0]?.id;
+    // Android: native Ringtone (no MediaSession). iOS/web: HTML / Web Audio loop.
+    if (isNativeOrderAlertRingerAvailable()) {
+      for (const alert of pendingAlertsRef.current) {
+        void startNativeOrderAlert(alert.id);
       }
-      void playBellOnce();
-      const duration = audioBufferRef.current?.duration ?? 2;
-      bellLoopTimerRef.current = setTimeout(loopBell, (duration * 1000) + BELL_LOOP_GAP_MS);
-    };
-    loopBell();
+      if (topId) playGateBell(topId);
+    } else {
+      playGateBell(topId);
+      const loopBell = () => {
+        if (!isBuzzingRef.current) return;
+        // Audio / haptics while backgrounded drains battery and is blocked on many OEMs.
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+          bellLoopTimerRef.current = setTimeout(loopBell, 3000);
+          return;
+        }
+        void playBellOnce();
+        const duration = audioBufferRef.current?.duration ?? 2;
+        bellLoopTimerRef.current = setTimeout(loopBell, (duration * 1000) + BELL_LOOP_GAP_MS);
+      };
+      loopBell();
+    }
     intervalRef.current = setInterval(() => {
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
       hapticVibrate(500);
@@ -302,6 +322,7 @@ export function useNewOrderAlert(sellerIds: string[]) {
     }
     delete snoozedUntilRef.current[orderId];
     void cancelIncomingOrderLocalNotification(orderId);
+    void stopNativeOrderAlert(orderId);
     setPendingAlerts(prev => {
       const idx = prev.findIndex(o => o.id === orderId);
       if (idx === -1) {

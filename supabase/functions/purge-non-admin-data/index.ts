@@ -1,14 +1,14 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 import { withAuth } from "../_shared/auth.ts";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+/* cors: use corsHeadersFor(req) */
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+  const corsHeaders = corsHeadersFor(req);
+  if (req.method === "OPTIONS" || req.method === 'OPTIONS') {
+    return handleCorsPreflight(req);
   }
 
   const start = Date.now();
@@ -45,6 +45,11 @@ Deno.serve(async (req) => {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    const purgeRl = await checkRateLimit(`admin-purge:${userId}`, 2, 3600, { failClosed: true });
+    if (!purgeRl.allowed) {
+      return rateLimitResponse(corsHeaders, purgeRl.retryAfterSeconds);
     }
 
     // Step 1: Get all admin user IDs to preserve

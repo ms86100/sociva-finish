@@ -1,7 +1,8 @@
 // @ts-nocheck
-import React, { useMemo, useEffect, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { IS_STAGING_SUPABASE, supabase } from '@/integrations/supabase/client';
+import { fetchOwnMembership, type OwnMembership } from '@/lib/society-membership';
 import { fetchCategoryConfigs } from '@/hooks/useCategoryBehavior';
 import { loadAppBootstrap } from '@/lib/app-bootstrap';
 
@@ -42,8 +43,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isSocietyAdmin = !!societyAdminRole || isAdmin;
   const isBuilderMember = managedBuilderIds.length > 0;
 
-  const effectiveSocietyId = viewAsSocietyId || profile?.society_id || null;
-  const effectiveSociety = viewAsSocietyId ? viewAsSociety : society;
+  const { data: stagingMembership = null } = useQuery({
+    queryKey: ['own-membership', user?.id],
+    queryFn: () => fetchOwnMembership(user!.id),
+    enabled: IS_STAGING_SUPABASE && !!user?.id,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) => (query.state.data?.status === 'pending' ? 8_000 : false),
+  });
+
+  const membershipSocietyId =
+    IS_STAGING_SUPABASE
+      ? (stagingMembership?.status === 'active' ? stagingMembership.societyId : null)
+      : (profile?.society_id || null);
+  const effectiveSocietyId = viewAsSocietyId || membershipSocietyId;
+  const effectiveSociety = viewAsSocietyId ? viewAsSociety : (effectiveSocietyId ? society : null);
 
   // Amplitude identity. Name and store are allowed. Phone and email are not.
   const identifiedUserRef = useRef<string | null>(null);

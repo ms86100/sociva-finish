@@ -26,7 +26,14 @@ describe('OTP session mint (no wasted MSG91 OTP)', () => {
   it('QA bypass phones never retry MSG91 with apple-review-bypass reqId', () => {
     const send = read('supabase/functions/msg91-send-otp/index.ts');
     expect(send).toMatch(/reqId === "apple-review-bypass"/);
+    expect(send).toMatch(/isQaOtpBypassPhone/);
     expect(send).not.toMatch(/9535115316/);
+    const verify = read('supabase/functions/msg91-verify-otp/index.ts');
+    expect(verify).toMatch(/isQaOtpBypassPhone/);
+    const phones = read('supabase/functions/_shared/qa-otp-phones.ts');
+    expect(phones).toMatch(/8448802999/);
+    const clientPhones = read('src/lib/qa-otp-bypass.ts');
+    expect(clientPhones).toMatch(/8448802999/);
     const client = read('src/hooks/useAuthPage.ts');
     expect(client).toMatch(/QA_OTP_REQ_ID/);
     expect(client).toMatch(/if \(resend\) \{/);

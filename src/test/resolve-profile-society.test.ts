@@ -11,6 +11,7 @@ const select = vi.fn(() => ({ eq }));
 const from = vi.fn(() => ({ select, update: vi.fn(() => ({ eq: vi.fn(() => ({ select: vi.fn(() => ({ maybeSingle })) })) })) }));
 
 vi.mock('@/integrations/supabase/client', () => ({
+  IS_STAGING_SUPABASE: false,
   supabase: {
     rpc: (...args: unknown[]) => rpc(...args),
     functions: { invoke: (...args: unknown[]) => invoke(...args) },
@@ -46,7 +47,7 @@ describe('resolveOrCreateSocietyForProfile', () => {
       error: null,
     });
     maybeSingle.mockResolvedValue({
-      data: { id: 'soc-1', name: 'Green Heights', invite_code: null },
+      data: { id: 'soc-1', name: 'Green Heights', invite_code: null, is_verified: true, is_active: true },
       error: null,
     });
 
@@ -71,7 +72,7 @@ describe('resolveOrCreateSocietyForProfile', () => {
       error: null,
     });
     maybeSingle.mockResolvedValue({
-      data: { id: 'soc-2', name: 'Private Towers', invite_code: 'AB12CD' },
+      data: { id: 'soc-2', name: 'Private Towers', invite_code: 'AB12CD', is_verified: true, is_active: true },
       error: null,
     });
 
@@ -94,12 +95,8 @@ describe('resolveOrCreateSocietyForProfile', () => {
     });
   });
 
-  it('creates a society via validate-society when no strong match', async () => {
+  it('does not create a society via validate-society when no strong match', async () => {
     rpc.mockResolvedValue({ data: [], error: null });
-    invoke.mockResolvedValue({
-      data: { valid: true, society: { id: 'new-9', name: 'Sunrise Enclave' } },
-      error: null,
-    });
 
     const result = await resolveOrCreateSocietyForProfile({
       name: 'Sunrise Enclave',
@@ -109,20 +106,24 @@ describe('resolveOrCreateSocietyForProfile', () => {
       longitude: 77.59,
     });
 
-    expect(result).toEqual({
-      ok: true,
-      societyId: 'new-9',
-      matched: false,
-      societyName: 'Sunrise Enclave',
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/approved society registry/i);
+    expect(invoke).not.toHaveBeenCalled();
+  });
+
+  it('refuses an unverified match even at high confidence', async () => {
+    rpc.mockResolvedValue({
+      data: [{ society_id: 'soc-draft', society_name: 'Draft Layout', confidence: 0.99 }],
+      error: null,
     });
-    expect(invoke).toHaveBeenCalledWith(
-      'validate-society',
-      expect.objectContaining({
-        body: expect.objectContaining({
-          new_society: expect.objectContaining({ name: 'Sunrise Enclave' }),
-        }),
-      }),
-    );
+    maybeSingle.mockResolvedValue({
+      data: { id: 'soc-draft', name: 'Draft Layout', invite_code: null, is_verified: false, is_active: true },
+      error: null,
+    });
+
+    const result = await resolveOrCreateSocietyForProfile({ name: 'Draft Layout' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toMatch(/approved society registry/i);
   });
 });
 

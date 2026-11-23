@@ -147,6 +147,45 @@ export async function sendWhatsAppText(opts: {
   });
 }
 
+/** Send an image by public HTTPS link (Meta Cloud API). Caption max ~1024 chars. */
+export async function sendWhatsAppImage(opts: {
+  phoneNumber: string;
+  imageUrl: string;
+  caption?: string;
+}): Promise<WhatsAppSendResult> {
+  const started = Date.now();
+  const phone = normalizeWhatsAppPhone(opts.phoneNumber);
+  if (!phone) {
+    return {
+      success: false,
+      code: "invalid_phone",
+      error: "Phone must be E.164 digits without +, e.g. 9198XXXXXXXX",
+      elapsedMs: Date.now() - started,
+    };
+  }
+  const link = String(opts.imageUrl || "").trim();
+  if (!/^https:\/\//i.test(link)) {
+    return {
+      success: false,
+      code: "meta_error",
+      error: "imageUrl must be a public https URL",
+      elapsedMs: Date.now() - started,
+    };
+  }
+
+  const image: Record<string, unknown> = { link };
+  const caption = String(opts.caption || "").trim();
+  if (caption) image.caption = caption.slice(0, 1024);
+
+  return postWhatsAppMessage({
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: phone,
+    type: "image",
+    image,
+  });
+}
+
 export type WhatsAppTemplateComponent = {
   type: "header" | "body" | "button";
   parameters?: Array<{ type: "text" | "currency" | "date_time" | "image" | "document" | "video"; text?: string }>;

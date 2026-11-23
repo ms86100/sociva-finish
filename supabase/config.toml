@@ -63,6 +63,10 @@ verify_jwt = false
 [functions.send-food-discovery]
 verify_jwt = false
 
+# Khatmitthi WhatsApp promo autopilot. Auth is service-role, x-cron-secret, or admin JWT.
+[functions.send-khatmitthi-promo]
+verify_jwt = false
+
 [functions.recover-financial-operations]
 verify_jwt = false
 
@@ -76,3 +80,15 @@ verify_jwt = true
 
 [functions.cleaner-city-work-email-otp]
 verify_jwt = true
+
+# Monthly society report worker - auth enforced in function (service role / cron secret)
+[functions.generate-society-report]
+verify_jwt = false
+
+# Staging ops alert cron - auth enforced via CRON_SECRET / service role
+[functions.ops-alert-check]
+verify_jwt = false
+# Public health status; detail still gated in code
+[functions.health]
+verify_jwt = false
+

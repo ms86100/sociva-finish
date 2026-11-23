@@ -1,11 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+/* cors: use corsHeadersFor(req) */
 
 async function getCredential(
   supabase: any,
@@ -272,8 +270,9 @@ async function processConcurrently<T, R>(
 // ─── Main Handler ───
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -316,6 +315,11 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: "Forbidden - admin role required" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    const campaignRl = await checkRateLimit(`admin-campaign:${user.id}`, 10, 3600);
+    if (!campaignRl.allowed) {
+      return rateLimitResponse(corsHeaders, campaignRl.retryAfterSeconds);
     }
 
     // ── Parse request ──

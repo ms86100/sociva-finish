@@ -22,13 +22,21 @@ Verified row counts match production for profiles, sellers, products, orders, ca
 
 Treat this branch as **sensitive** (real prod PII clone). Do not share anon keys beyond the integration Vercel project.
 
-## Frontend env (integration only)
+## Frontend env (staging / integration only)
 
-Copy from `docs/env.integration.example` to `.env.integration.local`, or set on the Vercel **sociva-integration** project:
+Preferred local commands (gitignored `.env.staging` already points at this branch):
 
 ```
+npm run assert:staging
+npm run dev:staging
+```
+
+Or copy from `.env.staging.example` / `docs/env.integration.example` to `.env.staging.local` / `.env.integration.local`, or set on the Vercel **sociva-integration** project:
+
+```
+VITE_APP_ENV=staging
 VITE_SUPABASE_URL=https://wwuanzbusxoyzixuprxs.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=<anon key from integration project>
+VITE_SUPABASE_PUBLISHABLE_KEY=<anon key from staging project>
 ```
 
 Never put these keys on the production `sociva-finish` Vercel project.

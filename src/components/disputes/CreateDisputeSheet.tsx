@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
-import { showFeedback, useFeedbackPopup } from '@/components/FeedbackPopupProvider';
+import { showFeedback } from '@/components/FeedbackPopupProvider';
 import { friendlyError } from '@/lib/utils';
 import { Loader2, ShieldAlert } from 'lucide-react';
 import { notifySocietyAdmins } from '@/lib/society-notifications';
@@ -24,7 +24,7 @@ interface Props {
 }
 
 export function CreateDisputeSheet({ open, onOpenChange, onCreated }: Props) {
-  const { user, profile, viewAsSocietyId } = useAuth();
+  const { user, profile, effectiveSocietyId, viewAsSocietyId } = useAuth();
   const ml = useMarketplaceLabels();
   const categories = ml.disputeCategories();
   const [category, setCategory] = useState(categories[0]?.value || 'other');
@@ -33,7 +33,7 @@ export function CreateDisputeSheet({ open, onOpenChange, onCreated }: Props) {
   const [saving, setSaving] = useState(false);
 
   const handleSubmitInner = async () => {
-    if (!user || !profile?.society_id) return;
+    if (!user || !effectiveSocietyId) return;
 
     const validation = validateForm(disputeSchema, { category, description, is_anonymous: isAnonymous });
     if (!validation.success) {
@@ -45,24 +45,27 @@ export function CreateDisputeSheet({ open, onOpenChange, onCreated }: Props) {
     setSaving(true);
     try {
       const { error } = await supabase.from('dispute_tickets').insert({
-        society_id: profile.society_id,
+        society_id: effectiveSocietyId,
         submitted_by: user.id,
+        raised_by: user.id,
+        reason: validation.data.description,
         category: validation.data.category,
         description: validation.data.description,
         is_anonymous: validation.data.is_anonymous ?? false,
+        status: 'open',
+        priority: 'medium',
       } as any);
       if (error) throw error;
 
-      if (profile?.society_id) {
+      if (effectiveSocietyId) {
         notifySocietyAdmins(
-          profile.society_id,
+          effectiveSocietyId,
           `⚖️ New Dispute Filed`,
           `${category} concern: ${validation.data.description.substring(0, 80)}`,
           { type: 'dispute' }
         );
       }
 
-      const { showFeedback } = useFeedbackPopup();
       showFeedback({
         title: 'Concern submitted - ' + ml.label('label_dispute_sla_notice'),
         variant: 'success'

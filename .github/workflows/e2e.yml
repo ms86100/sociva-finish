@@ -16,6 +16,27 @@ env:
   SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
 jobs:
+  security-scan:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    name: Dependency and secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: npm audit (production deps, critical)
+        run: npm audit --omit=dev --audit-level=critical
+      - name: Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   baseline:
     if: github.event_name == 'pull_request' || github.event_name == 'push'
     name: Lint, Unit, Build, Discovery
@@ -66,6 +87,16 @@ jobs:
       - run: npx playwright install --with-deps
       - name: Run full suite
         run: npx playwright test --config e2e/playwright.config.ts
+      - name: Cross-society RLS (staging API)
+        env:
+          BASE_URL: https://sociva-integration.vercel.app
+          E2E_ALLOW_REMOTE: "1"
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TEST_SELLER_EMAIL: ${{ secrets.TEST_SELLER_EMAIL }}
+          TEST_SELLER_PASSWORD: ${{ secrets.TEST_SELLER_PASSWORD }}
+          TEST_BUYER_EMAIL: ${{ secrets.TEST_BUYER_EMAIL }}
+          TEST_BUYER_PASSWORD: ${{ secrets.TEST_BUYER_PASSWORD }}
+        run: npx playwright test --config e2e/playwright.config.ts --project=cross-society-rls --workers=1
       - uses: actions/upload-artifact@v4
         if: always()
         with:

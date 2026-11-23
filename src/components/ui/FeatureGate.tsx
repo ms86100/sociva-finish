@@ -4,8 +4,11 @@ import type { FeatureKey } from '@/hooks/useEffectiveFeatures';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ShieldOff, AlertTriangle, RefreshCw } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
+import { IS_STAGING_SUPABASE } from '@/integrations/supabase/client';
+import { fetchOwnMembership } from '@/lib/society-membership';
+import { MembershipPendingPanel } from '@/components/society/MembershipPendingPanel';
 
 interface FeatureGateProps {
   feature: FeatureKey | FeatureKey[];
@@ -15,10 +18,18 @@ interface FeatureGateProps {
 
 export function FeatureGate({ feature, children, fallback }: FeatureGateProps) {
   const { isFeatureEnabled, isLoading, isError } = useEffectiveFeatures();
-  const { effectiveSocietyId } = useAuth();
+  const { effectiveSocietyId, user } = useAuth();
   const queryClient = useQueryClient();
+  const { data: membership, isLoading: membershipLoading } = useQuery({
+    queryKey: ['own-membership', user?.id],
+    queryFn: () => fetchOwnMembership(user!.id),
+    enabled: IS_STAGING_SUPABASE && !!user?.id,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) => (query.state.data?.status === 'pending' ? 8_000 : false),
+  });
 
-  if (isLoading) {
+  if (isLoading || (IS_STAGING_SUPABASE && membershipLoading && !effectiveSocietyId)) {
     return (
       <div className="p-4 space-y-3">
         <Skeleton className="h-8 w-1/2" />
@@ -51,7 +62,15 @@ export function FeatureGate({ feature, children, fallback }: FeatureGateProps) {
   const hasAccess = features.some(f => isFeatureEnabled(f));
 
   if (!hasAccess) {
-    return fallback ?? (
+    if (fallback) return <>{fallback}</>;
+    if (IS_STAGING_SUPABASE && membership?.status === 'pending') {
+      return (
+        <div className="p-4">
+          <MembershipPendingPanel />
+        </div>
+      );
+    }
+    return (
       <div className="flex flex-col items-center justify-center min-h-[40vh] text-center p-6">
         <ShieldOff className="text-muted-foreground mb-4" size={48} />
         <h2 className="text-lg font-semibold">Feature Not Available</h2>

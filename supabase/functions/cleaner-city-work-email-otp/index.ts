@@ -1,17 +1,17 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+/* cors: use corsHeadersFor(req) */
 
-function json(body: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+function makeJson(corsHeaders: Record<string, string>) {
+  return (body: Record<string, unknown>, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 }
+
+type JsonFn = ReturnType<typeof makeJson>;
 
 function mapStoreError(message: string): { error: string; code: string } {
   const m = (message || "").toLowerCase();
@@ -67,7 +67,7 @@ function mapResendError(status: number, body: string): { error: string; code: st
   };
 }
 
-async function withAuth(req: Request) {
+async function withAuth(req: Request, json: JsonFn) {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return json({ error: "Please sign in again", code: "unauthorized" }, 401);
@@ -175,12 +175,14 @@ async function sendResendEmail(opts: {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
+  const json = makeJson(corsHeaders);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
   try {
-    const authResult = await withAuth(req);
+    const authResult = await withAuth(req, json);
     if (authResult instanceof Response) return authResult;
     const { userId } = authResult;
 

@@ -12,12 +12,52 @@
  */
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
 const PROD_REF = 'kkzkuyhgdvyecmxtmkpy';
 const STAGING_REF = 'wwuanzbusxoyzixuprxs';
 
 const args = new Set(process.argv.slice(2));
 const requireStaging = args.has('--require-staging');
 const requireProduction = args.has('--require-production');
+
+/** Load .env* into process.env without overriding already-set vars. */
+function loadEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return;
+  const text = fs.readFileSync(filePath, 'utf8');
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq <= 0) continue;
+    const keyName = line.slice(0, eq).trim();
+    let val = line.slice(eq + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    ) {
+      val = val.slice(1, -1);
+    }
+    if (process.env[keyName] === undefined) {
+      process.env[keyName] = val;
+    }
+  }
+}
+
+const root = path.resolve(__dirname, '..');
+if (requireStaging) {
+  loadEnvFile(path.join(root, '.env.staging.local'));
+  loadEnvFile(path.join(root, '.env.staging'));
+} else if (requireProduction) {
+  loadEnvFile(path.join(root, '.env.production.local'));
+  loadEnvFile(path.join(root, '.env.production'));
+  loadEnvFile(path.join(root, '.env.local'));
+  loadEnvFile(path.join(root, '.env'));
+} else {
+  loadEnvFile(path.join(root, '.env.local'));
+  loadEnvFile(path.join(root, '.env'));
+}
 
 const appEnv = String(
   process.env.VITE_APP_ENV || process.env.CAPACITOR_ENV || 'production',

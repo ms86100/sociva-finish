@@ -1,37 +1,78 @@
 // @ts-nocheck
 import { cn } from '@/lib/utils';
-import { 
-  Megaphone, AlertTriangle, Wrench, BarChart3, Search as SearchIcon, LayoutGrid 
+import {
+  Megaphone,
+  AlertTriangle,
+  Wrench,
+  BarChart3,
+  Search as SearchIcon,
+  LayoutGrid,
+  HandHelping,
+  Star,
+  Home,
+  ShoppingBag,
+  Bell,
+  Heart,
 } from 'lucide-react';
+import type { SmartGroupCategory } from '@/lib/community-intent';
 
-export type BulletinCategory = 'all' | 'event' | 'alert' | 'maintenance' | 'poll' | 'lost_found';
+export type BulletinCategory = 'all' | 'following' | SmartGroupCategory;
 
-const categories: { value: BulletinCategory; label: string; icon: React.ElementType; color: string }[] = [
+const categories: {
+  value: BulletinCategory;
+  label: string;
+  icon: React.ElementType;
+  color: string;
+}[] = [
   { value: 'all', label: 'All', icon: LayoutGrid, color: 'text-foreground' },
+  { value: 'following', label: 'Following', icon: Heart, color: 'text-primary' },
+  { value: 'find_help', label: 'Find Help', icon: HandHelping, color: 'text-primary' },
+  { value: 'recommendation', label: 'Recommendations', icon: Star, color: 'text-warning' },
+  { value: 'rent_sell', label: 'Rent & Sell', icon: Home, color: 'text-info' },
+  { value: 'buy_sell', label: 'Buy & Sell', icon: ShoppingBag, color: 'text-success' },
   { value: 'event', label: 'Events', icon: Megaphone, color: 'text-info' },
+  { value: 'announcement', label: 'Announcements', icon: Bell, color: 'text-foreground' },
+  { value: 'lost_found', label: 'Lost & Found', icon: SearchIcon, color: 'text-success' },
   { value: 'alert', label: 'Alerts', icon: AlertTriangle, color: 'text-destructive' },
   { value: 'maintenance', label: 'Maintenance', icon: Wrench, color: 'text-warning' },
   { value: 'poll', label: 'Polls', icon: BarChart3, color: 'text-primary' },
-  { value: 'lost_found', label: 'Lost & Found', icon: SearchIcon, color: 'text-success' },
 ];
+
+/** Legacy-only chips when smart_groups is off */
+const legacyCategories = categories.filter((c) =>
+  ['all', 'event', 'alert', 'maintenance', 'poll', 'lost_found'].includes(c.value),
+);
 
 interface CategoryFilterProps {
   selected: BulletinCategory;
   onSelect: (cat: BulletinCategory) => void;
+  /** When true, show Smart Groups category set */
+  smartGroups?: boolean;
+  /** Show Following chip only when user has follow prefs */
+  showFollowing?: boolean;
 }
 
-export function CategoryFilter({ selected, onSelect }: CategoryFilterProps) {
+export function CategoryFilter({
+  selected,
+  onSelect,
+  smartGroups = false,
+  showFollowing = true,
+}: CategoryFilterProps) {
+  const list = smartGroups
+    ? categories.filter((c) => c.value !== 'following' || showFollowing)
+    : legacyCategories;
   return (
     <div className="flex gap-2 overflow-x-auto scrollbar-hide px-4 pb-2">
-      {categories.map(({ value, label, icon: Icon, color }) => (
+      {list.map(({ value, label, icon: Icon, color }) => (
         <button
           key={value}
+          type="button"
           onClick={() => onSelect(value)}
           className={cn(
             'flex items-center gap-1.5 px-3 min-h-[40px] rounded-full text-xs font-medium whitespace-nowrap transition-all border',
             selected === value
               ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-              : 'bg-card border-border text-muted-foreground hover:border-primary/30'
+              : 'bg-card border-border text-muted-foreground hover:border-primary/30',
           )}
         >
           <Icon size={14} className={selected === value ? 'text-primary-foreground' : color} />
@@ -42,10 +83,18 @@ export function CategoryFilter({ selected, onSelect }: CategoryFilterProps) {
   );
 }
 
-export const CATEGORY_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string; bg: string }> = {
+export const CATEGORY_CONFIG: Record<
+  string,
+  { label: string; icon: React.ElementType; color: string; bg: string }
+> = {
   event: { label: 'Event', icon: Megaphone, color: 'text-info', bg: 'bg-info/15' },
   alert: { label: 'Alert', icon: AlertTriangle, color: 'text-destructive', bg: 'bg-destructive/15' },
   maintenance: { label: 'Maintenance', icon: Wrench, color: 'text-warning', bg: 'bg-warning/15' },
   poll: { label: 'Poll', icon: BarChart3, color: 'text-primary', bg: 'bg-primary/15' },
   lost_found: { label: 'Lost & Found', icon: SearchIcon, color: 'text-success', bg: 'bg-success/15' },
+  find_help: { label: 'Find Help', icon: HandHelping, color: 'text-primary', bg: 'bg-primary/15' },
+  recommendation: { label: 'Recommendation', icon: Star, color: 'text-warning', bg: 'bg-warning/15' },
+  rent_sell: { label: 'Rent & Sell', icon: Home, color: 'text-info', bg: 'bg-info/15' },
+  buy_sell: { label: 'Buy & Sell', icon: ShoppingBag, color: 'text-success', bg: 'bg-success/15' },
+  announcement: { label: 'Announcement', icon: Bell, color: 'text-foreground', bg: 'bg-muted' },
 };

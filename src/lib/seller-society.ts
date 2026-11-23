@@ -3,7 +3,8 @@
  * Primary path: Auth "Find Your Society" → profiles.society_id → seller draft copies it.
  * Store map location ≠ society membership - approval requires society_id.
  */
-import { supabase } from '@/integrations/supabase/client';
+import { IS_STAGING_SUPABASE, supabase } from '@/integrations/supabase/client';
+import { requestSocietyMembership } from '@/lib/society-membership';
 
 const EARTH_KM = 6371;
 /** Radius for matching store pin → registered society (residential societies can be sparse). */
@@ -31,12 +32,15 @@ export async function findNearestSociety(
   lng: number,
   maxKm = DEFAULT_MATCH_KM,
 ): Promise<SocietyMatch | null> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('societies')
     .select('id, name, latitude, longitude')
     .not('latitude', 'is', null)
-    .not('longitude', 'is', null)
-    .limit(500);
+    .not('longitude', 'is', null);
+  if (IS_STAGING_SUPABASE) {
+    query = query.eq('is_active', true).eq('is_verified', true);
+  }
+  const { data, error } = await query.limit(500);
 
   if (error || !data?.length) return null;
 
@@ -86,14 +90,11 @@ async function linkSocietyToAccount(
   sellerId: string,
   societyId: string,
 ): Promise<{ ok: boolean; error?: string }> {
-  const { error: profileErr } = await supabase
-    .from('profiles')
-    .update({ society_id: societyId } as any)
-    .eq('id', userId);
-  if (profileErr) {
+  const membership = await requestSocietyMembership(userId, societyId);
+  if (!membership.ok) {
     return {
       ok: false,
-      error: 'Could not link your account to a society. Please try again from Profile.',
+      error: membership.error || 'Could not link your account to a society. Please try again from Profile.',
     };
   }
   await supabase
@@ -145,6 +146,15 @@ export async function ensureSellerSocietyForSubmit(opts: {
   }
 
   if (!societyId && latitude != null && longitude != null) {
+    if (IS_STAGING_SUPABASE) {
+      return {
+        ok: false,
+        societyId: null,
+        linked: false,
+        error:
+          'A map pin is not membership. Join an approved society from Profile, then submit again.',
+      };
+    }
     const match = await findNearestSociety(latitude, longitude);
     if (match) {
       const linked = await linkSocietyToAccount(userId, sellerId, match.id);
@@ -188,10 +198,10 @@ export async function ensureSellerSocietyForSubmit(opts: {
 
   // Sync profile ← seller when profile is missing but seller has society
   if (!profileSocietyId && sellerSocietyId) {
-    await supabase
-      .from('profiles')
-      .update({ society_id: sellerSocietyId } as any)
-      .eq('id', userId);
+    const membership = await requestSocietyMembership(userId, sellerSocietyId);
+    if (!membership.ok) {
+      return { ok: false, societyId: null, linked: false, error: membership.error };
+    }
     return { ok: true, societyId: sellerSocietyId, linked: true };
   }
 

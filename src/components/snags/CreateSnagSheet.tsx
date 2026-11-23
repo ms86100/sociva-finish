@@ -26,13 +26,17 @@ export function CreateSnagSheet({ onCreated }: { onCreated: () => void }) {
     setIsSubmitting(true);
 
     try {
+      const unit = [profile.block, profile.flat_number].filter(Boolean).join('-') || 'N/A';
       const { error } = await supabase.from('snag_tickets').insert({
         society_id: profile.society_id,
         reported_by: user.id,
-        flat_number: profile.flat_number || 'N/A',
+        unit_number: unit,
         category,
         description: description.trim(),
-        photo_urls: photoUrl ? [photoUrl] : [],
+        image_urls: photoUrl ? [photoUrl] : [],
+        status: 'reported',
+        priority: 'medium',
+        title: description.trim().slice(0, 80),
       });
       if (error) throw error;
 

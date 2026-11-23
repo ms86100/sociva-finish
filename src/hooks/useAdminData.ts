@@ -1,7 +1,8 @@
 // @ts-nocheck
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { IS_STAGING_SUPABASE, supabase } from '@/integrations/supabase/client';
+import { decideMembershipForUser } from '@/lib/society-membership';
 import { Profile, SellerProfile, Review, PaymentRecord, VerificationStatus, PaymentStatus, Society } from '@/types/Database';
 import { useStatusLabels } from '@/hooks/useStatusLabels';
 import { useCurrency } from '@/hooks/useCurrency';
@@ -36,7 +37,9 @@ interface Warning {
 }
 
 const PAGE_SIZE = 50;
-const USERS_PAGE_SIZE = 200;
+const USERS_PAGE_SIZE = 80;
+const USER_DIRECTORY_COLUMNS =
+  'id, name, phone, email, block, flat_number, phase, verification_status, created_at, updated_at, avatar_url, society_id';
 
 export type AdminDirectoryUser = Profile & {
   email?: string | null;
@@ -109,7 +112,7 @@ export function useAdminData() {
   const fetchCoreData = useCallback(async () => {
     try {
       const [usersRes, sellersRes, allSellersRes, statsRes] = await Promise.all([
-        supabase.from('profiles').select('*, society:societies!profiles_society_id_fkey(name)').eq('verification_status', 'pending'),
+        supabase.from('profiles').select('id, name, phone, email, block, flat_number, phase, verification_status, created_at, society_id').eq('verification_status', 'pending').limit(100),
         supabase.from('seller_profiles').select('*, profile:profiles!seller_profiles_user_id_fkey(name, block, flat_number)').eq('verification_status', 'pending'),
         supabase.from('seller_profiles').select('*, profile:profiles!seller_profiles_user_id_fkey(name, block)').eq('verification_status', 'approved'),
         Promise.all([
@@ -168,13 +171,35 @@ export function useAdminData() {
   const fetchUsersDirectory = useCallback(async () => {
     setUsersLoading(true);
     try {
-      const { data, error } = await supabase
+      let users: AdminDirectoryUser[] = [];
+      const embedded = await supabase
         .from('profiles')
-        .select('id, name, phone, email, block, flat_number, phase, verification_status, created_at, updated_at, avatar_url, society_id, society:societies!profiles_society_id_fkey(name, address, city, state, pincode)')
+        .select(`${USER_DIRECTORY_COLUMNS}, society:societies!profiles_society_id_fkey(name, address, city, state, pincode)`)
         .order('created_at', { ascending: false })
         .limit(USERS_PAGE_SIZE);
-      if (error) throw error;
-      const users = (data as AdminDirectoryUser[]) || [];
+      if (embedded.error) {
+        const plain = await supabase
+          .from('profiles')
+          .select(USER_DIRECTORY_COLUMNS)
+          .order('created_at', { ascending: false })
+          .limit(USERS_PAGE_SIZE);
+        if (plain.error) throw plain.error;
+        users = (plain.data as AdminDirectoryUser[]) || [];
+        const societyIds = [...new Set(users.map((u) => u.society_id).filter(Boolean))] as string[];
+        if (societyIds.length > 0) {
+          const { data: societies } = await supabase
+            .from('societies')
+            .select('id, name, address, city, state, pincode')
+            .in('id', societyIds);
+          const byId = new Map((societies || []).map((s: { id: string }) => [s.id, s]));
+          users = users.map((u) => ({
+            ...u,
+            society: u.society_id ? (byId.get(u.society_id) as AdminDirectoryUser['society']) || null : null,
+          }));
+        }
+      } else {
+        users = (embedded.data as AdminDirectoryUser[]) || [];
+      }
       setAllUsers(users);
 
       // Best-effort device token map - never break the directory if this fails
@@ -243,13 +268,10 @@ export function useAdminData() {
 
   // Full refresh (used after mutations)
   const fetchData = useCallback(async () => {
-    setLoadedTabs(new Set());
     await fetchCoreData();
-    if (activeTab === 'users') {
-      await fetchUsersDirectory();
-      setLoadedTabs(new Set(['users']));
-    }
-  }, [fetchCoreData, fetchUsersDirectory, activeTab]);
+    if (activeTab === 'users') await fetchUsersDirectory();
+    if (activeTab === 'societies') await fetchSocieties();
+  }, [fetchCoreData, fetchUsersDirectory, fetchSocieties, activeTab]);
 
   const loadMoreReviews = async () => {
     if (!hasMoreReviews || isLoadingMore) return;
@@ -286,6 +308,17 @@ export function useAdminData() {
 
   const updateUserStatus = async (id: string, status: VerificationStatus) => {
     try {
+      const decided = await decideMembershipForUser(id, status);
+      if (decided.ok) {
+        await logAudit(`user_${status}`, 'profile', id, '', { status, membership: decided.status });
+        adminNotify.success(`User ${status}`);
+        fetchData();
+        return;
+      }
+      if (IS_STAGING_SUPABASE && !decided.missing) {
+        adminNotify.error(decided.error);
+        return;
+      }
       await supabase.from('profiles').update({ verification_status: status }).eq('id', id);
       await logAudit(`user_${status}`, 'profile', id, '', { status });
       adminNotify.success(`User ${status}`);

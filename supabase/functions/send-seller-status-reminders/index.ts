@@ -1,4 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
+import {
+  isCronSecretRequest,
+  isServiceRoleRequest,
+} from "../_shared/worker-auth.ts";
 import {
   INSTANT_UNACKED_STATUSES,
   SCHEDULED_ACCEPT_STATUSES,
@@ -9,11 +14,7 @@ import {
   unackedIdempotencyKey,
 } from "../_shared/seller-status-reminders-policy.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-cron-secret",
-};
+/* cors: use corsHeadersFor(req) */
 
 const REMINDER_INTERVAL_MIN = 15;
 const TYPE = "seller_order_status_reminder";
@@ -246,20 +247,17 @@ async function enqueueScheduledAcceptReminders(supabase: any) {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
   const authHeader = req.headers.get("Authorization") || "";
-  const isService = authHeader === `Bearer ${serviceKey}`;
-  const incomingCron = req.headers.get("x-cron-secret") || "";
-  const envCron = Deno.env.get("CRON_SECRET") || "";
-  const isCron = incomingCron.length > 0 && (
-    (envCron.length > 0 && incomingCron === envCron) || incomingCron.length >= 32
-  );
+  const isService = isServiceRoleRequest(req, serviceKey);
+  const isCron = isCronSecretRequest(req);
 
   if (!isService && !isCron) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {

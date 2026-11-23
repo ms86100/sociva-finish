@@ -16,7 +16,13 @@ export function isSocietyEntryVisible(input: {
 export function useSocietyEntryVisible(): boolean {
   const { features, isLoading } = useEffectiveFeatures();
   const { isAdmin, effectiveSocietyId } = useAuth();
-  const hasAnyFeature = features.some((f) => f.is_enabled && f.society_configurable);
+  // Prefer society_configurable when present; fall back to any enabled feature
+  // so residents are not hidden if an older RPC omits the column.
+  const hasAnyFeature = features.some((f) => {
+    if (!f.is_enabled) return false;
+    if (typeof f.society_configurable === 'boolean') return f.society_configurable;
+    return true;
+  });
   return isSocietyEntryVisible({
     effectiveSocietyId,
     isAdmin: !!isAdmin,

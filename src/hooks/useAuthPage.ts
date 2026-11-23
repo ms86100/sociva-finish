@@ -1,11 +1,13 @@
 // @ts-nocheck
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from '@/integrations/supabase/client';
+import { supabase, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, IS_STAGING_SUPABASE } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { requestSocietyMembership } from '@/lib/society-membership';
+import { fetchApprovedSocieties, submitSocietyRegistryRequest } from '@/lib/approved-societies';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { Society } from '@/types/Database';
-import { useAutocomplete, PlaceDetails } from '@/hooks/useGoogleMaps';
 import { useSystemSettings } from '@/hooks/useSystemSettings';
 import { markPostLoginPermissionSheet, reopenNotificationAsk } from '@/hooks/usePermissionLifecycle';
 import { notify } from '@/lib/notify';
@@ -15,11 +17,12 @@ import { pendingAuthReturnPath, peekPendingAuthAction, resolvePendingReturnTo, p
 import { consumeAuthReturnTo } from '@/hooks/useDeepLinks';
 
 export type AuthStep = 'phone' | 'otp' | 'society';
-export type SocietySubStep = 'search' | 'map-confirm' | 'request-form';
+export type SocietySubStep = 'search' | 'request-form';
 
 export function useAuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
   const sessionExpiryReturnRef = useRef<string | null>(null);
   if (sessionExpiryReturnRef.current === null) {
     sessionExpiryReturnRef.current = consumeAuthReturnTo() ?? '';
@@ -63,12 +66,7 @@ export function useAuthPage() {
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'verified' | 'failed' | 'unavailable'>('idle');
   const [gpsDistance, setGpsDistance] = useState<number | null>(null);
 
-  // Google Places autocomplete
-  const { predictions, isSearching, searchPlaces, getPlaceDetails, clearPredictions, isLoaded: mapsLoaded } = useAutocomplete();
-  const [selectedPlace, setSelectedPlace] = useState<PlaceDetails | null>(null);
-  const [adjustedCoords, setAdjustedCoords] = useState<{ lat: number; lng: number } | null>(null);
   const settings = useSystemSettings();
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Request form
   const [newSocietyData, setNewSocietyData] = useState({ name: '', address: '', city: '', pincode: '', landmark: '', contact: '' });
@@ -114,13 +112,8 @@ export function useAuthPage() {
 
   const fetchSocieties = async () => {
     setIsLoadingSocieties(true);
-    const { data } = await supabase
-      .from('societies')
-      .select('*')
-      .eq('is_active', true)
-      .eq('is_verified', true)
-      .order('name');
-    setSocieties((data as Society[]) || []);
+    const rows = await fetchApprovedSocieties();
+    setSocieties((rows as Society[]) || []);
     setIsLoadingSocieties(false);
   };
 
@@ -469,98 +462,11 @@ export function useAuthPage() {
   const handleSearchChange = useCallback((value: string) => {
     setSocietySearch(value);
     setSelectedSociety(null);
-    setSelectedPlace(null);
-    setAdjustedCoords(null);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (value.length >= 3 && mapsLoaded) {
-      debounceRef.current = setTimeout(() => searchPlaces(value), 300);
-    } else {
-      clearPredictions();
-    }
-  }, [mapsLoaded, searchPlaces, clearPredictions]);
+  }, []);
 
   const handleSelectDbSociety = (society: Society) => {
     setSelectedSociety(society);
     setSocietySearch(society.name);
-    clearPredictions();
-  };
-
-  // Society match candidates for confirmation UI
-  const [potentialMatches, setPotentialMatches] = useState<Array<{ society_id: string; society_name: string; match_type: string; confidence: number }>>([]);
-  const [pendingPlaceDetails, setPendingPlaceDetails] = useState<{ details: PlaceDetails; placeId: string } | null>(null);
-
-  const handleSelectGooglePlace = async (placeId: string) => {
-    const details = await getPlaceDetails(placeId);
-    if (!details) { toast.error('Could not load address details'); return; }
-    setSelectedPlace(details);
-    clearPredictions();
-    setSocietySearch(details.name);
-
-    // Use resolve_society RPC for smart matching
-    const { data: matches } = await supabase.rpc('resolve_society', {
-      _input_name: details.name,
-      _lat: details.latitude,
-      _lng: details.longitude,
-      _google_place_id: placeId,
-    });
-
-    if (matches && matches.length === 1 && matches[0].confidence >= 0.8) {
-      // High confidence single match - auto-select
-      const existing = societies.find(s => s.id === matches[0].society_id);
-      if (existing) {
-        setSelectedSociety(existing);
-        toast.info(`Found: ${existing.name}`);
-        return;
-      }
-    }
-
-    if (matches && matches.length > 0 && matches[0].confidence >= 0.4) {
-      // Medium confidence - show confirmation UI
-      setPotentialMatches(matches);
-      setPendingPlaceDetails({ details, placeId });
-      return;
-    }
-
-    // No match - proceed with new society creation
-    const name = details.name;
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
-    setPendingNewSociety({
-      name, slug,
-      address: details.formattedAddress,
-      city: details.city, state: details.state,
-      pincode: details.pincode,
-      latitude: details.latitude, longitude: details.longitude,
-    });
-    setSelectedSociety({ id: 'pending', name, slug, is_active: false, is_verified: false, latitude: details.latitude, longitude: details.longitude, created_at: '', updated_at: '' } as Society);
-    showFeedback({ title: 'Location selected! Continue to complete setup.', variant: 'success' });
-  };
-
-  const handleConfirmMatch = (societyId: string) => {
-    const existing = societies.find(s => s.id === societyId);
-    if (existing) {
-      setSelectedSociety(existing);
-      setPotentialMatches([]);
-      setPendingPlaceDetails(null);
-      toast.info(`Selected: ${existing.name}`);
-    }
-  };
-
-  const handleRejectMatches = () => {
-    if (!pendingPlaceDetails) return;
-    const { details } = pendingPlaceDetails;
-    const name = details.name;
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
-    setPendingNewSociety({
-      name, slug,
-      address: details.formattedAddress,
-      city: details.city, state: details.state,
-      pincode: details.pincode,
-      latitude: details.latitude, longitude: details.longitude,
-    });
-    setSelectedSociety({ id: 'pending', name, slug, is_active: false, is_verified: false, latitude: details.latitude, longitude: details.longitude, created_at: '', updated_at: '' } as Society);
-    setPotentialMatches([]);
-    setPendingPlaceDetails(null);
-    showFeedback({ title: 'Location selected! Continue to complete setup.', variant: 'success' });
   };
 
   const verifyGpsLocation = async () => {
@@ -579,23 +485,35 @@ export function useAuthPage() {
     }
   };
 
-  const handleRequestNewSociety = () => {
+  const handleRequestNewSociety = async () => {
     if (!newSocietyData.name || !newSocietyData.city || !newSocietyData.pincode || !newSocietyData.contact) {
       notify.block('Please fill in all required fields'); return;
     }
-    const slug = newSocietyData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const pending = {
-      name: newSocietyData.name,
-      slug: slug + '-' + Date.now(),
-      address: [newSocietyData.address, newSocietyData.landmark].filter(Boolean).join(', ') || '',
-      city: newSocietyData.city, state: '', pincode: newSocietyData.pincode,
-      latitude: 0, longitude: 0,
-    };
-    setPendingNewSociety(pending);
-    setSelectedSociety({ id: 'pending', name: newSocietyData.name, slug: pending.slug, is_active: false, is_verified: false, created_at: '', updated_at: '' } as Society);
-    showFeedback({ title: "Society details saved! Continue to finish setup.", variant: 'success' });
-    setSocietySubStep('search');
-    setNewSocietyData({ name: '', address: '', city: '', pincode: '', landmark: '', contact: '' });
+    setIsLoading(true);
+    try {
+      const submitted = await submitSocietyRegistryRequest({
+        name: newSocietyData.name,
+        address: [newSocietyData.address, newSocietyData.landmark].filter(Boolean).join(', '),
+        city: newSocietyData.city,
+        pincode: newSocietyData.pincode,
+        landmark: newSocietyData.landmark,
+        contact: newSocietyData.contact,
+      });
+      if (!submitted.ok) {
+        toast.error(submitted.error);
+        return;
+      }
+      showFeedback({
+        title: 'Request sent. Sociva admin will add this society if the RWA is verified.',
+        variant: 'success',
+      });
+      setSocietySubStep('search');
+      setSelectedSociety(null);
+      setPendingNewSociety(null);
+      setNewSocietyData({ name: '', address: '', city: '', pincode: '', landmark: '', contact: '' });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSocietyComplete = async () => {
@@ -610,13 +528,9 @@ export function useAuthPage() {
       let finalSocietyId = selectedSociety.id;
 
       if (pendingNewSociety && selectedSociety.id === 'pending') {
-        const { data: validateData, error: validateError } = await supabase.functions.invoke('validate-society', {
-          body: { new_society: pendingNewSociety },
-        });
-        if (validateError) throw validateError;
-        if (validateData?.society?.id) {
-          finalSocietyId = validateData.society.id;
-        }
+        toast.error('New societies must be approved by Sociva admin before you can join.');
+        setIsLoading(false);
+        return;
       }
 
       if (!finalSocietyId || finalSocietyId === 'pending') {
@@ -625,13 +539,25 @@ export function useAuthPage() {
         return;
       }
 
-      // Update profile with society_id
       const { data: { user } } = await supabase.auth.getUser();
+      let joinStatus = 'assigned';
       if (user) {
-        await supabase.from('profiles').update({ society_id: finalSocietyId }).eq('id', user.id);
+        const joined = await requestSocietyMembership(user.id, finalSocietyId, inviteCode);
+        if (!joined.ok) {
+          if (joined.inviteRequired) {
+            setInviteError('Invalid invite code for this society');
+            toast.error('Invalid invite code for this society');
+          } else {
+            toast.error(joined.error);
+          }
+          setIsLoading(false);
+          return;
+        }
+        joinStatus = joined.status;
+        await queryClient.invalidateQueries({ queryKey: ['own-membership', user.id] });
+        await queryClient.invalidateQueries({ queryKey: ['own-membership'] });
 
-        // Validate society if it's an existing one
-        if (!pendingNewSociety && selectedSociety.id !== 'pending') {
+        if (!pendingNewSociety && selectedSociety.id !== 'pending' && !IS_STAGING_SUPABASE) {
           try {
             await supabase.functions.invoke('validate-society', {
               body: { society_id: selectedSociety.id },
@@ -642,7 +568,12 @@ export function useAuthPage() {
         }
       }
 
-      showFeedback({ title: 'Welcome! Complete your profile to get started.', variant: 'success' });
+      showFeedback({
+        title: IS_STAGING_SUPABASE && joinStatus === 'pending'
+          ? 'Join request sent. Complete your profile while an admin approves access.'
+          : 'Welcome! Complete your profile to get started.',
+        variant: 'success',
+      });
       navigate('/profile/edit');
     } catch (error: any) {
       toast.error(friendlyError(error));
@@ -662,8 +593,6 @@ export function useAuthPage() {
     setOtpError(null);
     otpConsumedNeedsFreshRef.current = false;
     setSelectedSociety(null);
-    setSelectedPlace(null);
-    setAdjustedCoords(null);
     setInviteCode('');
     setInviteError(null);
     setGpsStatus('idle');
@@ -677,7 +606,6 @@ export function useAuthPage() {
   const stepLabels = isNewUser ? ['Phone', 'Verify', 'Society'] : ['Phone', 'Verify'];
 
   const showDbResults = societySearch.length >= 2 && filteredSocieties.length > 0;
-  const showGoogleResults = societySearch.length >= 3 && predictions.length > 0 && !selectedSociety;
 
   return {
     // Step
@@ -690,21 +618,17 @@ export function useAuthPage() {
     // Society
     societies, societySearch, selectedSociety, isLoadingSocieties,
     inviteCode, setInviteCode, inviteError, setInviteError, gpsStatus, gpsDistance,
-    // Google Maps
-    predictions, isSearching, mapsLoaded, selectedPlace,
     // New society
     newSocietyData, setNewSocietyData, pendingNewSociety,
-    // Society matching
-    potentialMatches, handleConfirmMatch, handleRejectMatches,
     // Settings
     settings,
     // Computed
-    filteredSocieties, showDbResults, showGoogleResults,
+    filteredSocieties, showDbResults,
     totalSteps, currentStepNum, stepLabels,
     isCheckoutResume,
     // Handlers
     handleSendOtp, handleVerifyOtp,
-    handleSearchChange, handleSelectDbSociety, handleSelectGooglePlace,
+    handleSearchChange, handleSelectDbSociety,
     verifyGpsLocation, handleRequestNewSociety, handleSocietyComplete,
     formatPhone, resetFlow,
     resetOtpSessionGuards: () => {

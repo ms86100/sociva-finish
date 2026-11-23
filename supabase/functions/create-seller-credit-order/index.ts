@@ -3,21 +3,20 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 import { getWorkingRazorpayCredentials } from "../_shared/credentials.ts";
 import { RAZORPAY_GATEWAY_AUTH_FAILED, razorpayKeyMode } from "../_shared/razorpay-key-pair.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-const json = (body: Record<string, unknown>, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+/* cors: use corsHeadersFor(req) */
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const corsHeaders = corsHeadersFor(req);
+  const json = (body: Record<string, unknown>, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  if (req.method === "OPTIONS") {
+    return handleCorsPreflight(req);
+  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -28,8 +27,10 @@ serve(async (req) => {
     const authResult = await withAuth(req, corsHeaders);
     if (authResult instanceof Response) return authResult;
 
-    const { allowed } = await checkRateLimit(`seller-credit:${authResult.userId}`, 8, 60);
-    if (!allowed) return rateLimitResponse(corsHeaders);
+    const creditRl = await checkRateLimit(`seller-credit:${authResult.userId}`, 8, 60, {
+      failClosed: true,
+    });
+    if (!creditRl.allowed) return rateLimitResponse(corsHeaders, creditRl.retryAfterSeconds);
 
     const body = await req.json();
     const sellerId = String(body.seller_id || "");

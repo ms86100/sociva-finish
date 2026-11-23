@@ -1,10 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-};
+/* cors: use corsHeadersFor(req) */
 
 const TEST_ACTORS: Record<string, { email: string; password: string }> = {
   buyer: { email: "integration-buyer@test.sociva.com", password: "TestBuyer2026!" },
@@ -97,8 +94,9 @@ function resolvePath(path: string, context: Record<string, any>): any {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

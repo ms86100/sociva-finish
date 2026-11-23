@@ -5,13 +5,20 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:staging": "vite --mode staging --port 5174",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "build:staging": "node scripts/assert-supabase-env.cjs --require-staging && vite build --mode staging",
     "build:native": "vite build --mode capacitor",
+    "build:native:staging": "node scripts/assert-supabase-env.cjs --require-staging && vite build --mode staging",
     "cap:sync:android": "npm run build:native && npx cap sync android",
+    "cap:sync:android:staging": "npm run build:native:staging && npx cap sync android",
+    "assert:staging": "node scripts/assert-supabase-env.cjs --require-staging",
+    "assert:production": "node scripts/assert-supabase-env.cjs --require-production",
     "lint": "eslint .",
     "lint:quiet": "eslint . --quiet",
     "preview": "vite preview",
+    "preview:staging": "vite preview --mode staging",
     "postinstall": "node scripts/patch-android-builds.cjs",
     "test": "vitest run",
     "test:financial": "vitest run src/test/wallet-mvp-money.test.ts src/test/wallet-financial-hardening.test.ts src/test/wallet-financial-operations.test.ts src/test/wallet-certification-controls.test.ts",
@@ -20,7 +27,8 @@
     "test:e2e": "npm run build && playwright test --config e2e/playwright.config.ts",
     "test:e2e:today": "npm run build && playwright test --config e2e/playwright.config.ts --project=today-prompts",
     "test:e2e:smoke": "npm run build && playwright test --config e2e/playwright.config.ts --grep @smoke",
-    "test:e2e:debug": "playwright test --config e2e/playwright.config.ts --ui"
+    "test:e2e:debug": "playwright test --config e2e/playwright.config.ts --ui",
+    "test:stage2:staging": "node scripts/stage2-staging-validation.cjs"
   },
   "dependencies": {
     "@amplitude/analytics-browser": "^2.46.0",

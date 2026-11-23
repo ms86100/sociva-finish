@@ -26,6 +26,7 @@ import {
   type AudienceMode,
 } from '@/components/admin/campaign/CampaignAudiencePicker';
 import { FoodDiscoveryPanel } from '@/components/admin/FoodDiscoveryPanel';
+import { KhatmitthiPromoPanel } from '@/components/admin/KhatmitthiPromoPanel';
 
 const TITLE_MAX = 65;
 const BODY_MAX = 180;
@@ -322,6 +323,7 @@ export function CampaignSender() {
 
   return (
     <div className="space-y-5">
+      <KhatmitthiPromoPanel />
       <FoodDiscoveryPanel />
       <Card className="border-0 shadow-[var(--shadow-card)] rounded-2xl">
         <CardHeader className="pb-3">

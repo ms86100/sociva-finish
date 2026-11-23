@@ -1,13 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+/* cors: use corsHeadersFor(req) */
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
   try {
@@ -47,6 +47,11 @@ Deno.serve(async (req) => {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    const cronRl = await checkRateLimit(`admin-cron:${user.id}`, 30, 60);
+    if (!cronRl.allowed) {
+      return rateLimitResponse(corsHeaders, cronRl.retryAfterSeconds);
     }
 
     const body = await req.json().catch(() => ({}));

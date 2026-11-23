@@ -1,13 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
-import { checkRateLimit } from "../_shared/rate-limiter.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
+import { getClientIp, isOtpBypassEnabled } from "../_shared/client-ip.ts";
+import { isQaOtpBypassPhone } from "../_shared/qa-otp-phones.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
 // Shared across warm isolates
 let _admin: ReturnType<typeof createClient> | null = null;
@@ -171,15 +166,18 @@ async function lookupExistingUser(
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
+  const cors = corsHeadersFor(req);
+  const jsonHeaders = { ...cors, "Content-Type": "application/json" };
   const t0 = Date.now();
 
   try {
     const { reqId, otp, phone, country_code = "91" } = await req.json();
-    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const clientIp = getClientIp(req);
 
     if (!reqId) {
       return new Response(JSON.stringify({ error: "Please go back and re-enter your phone number." }), { status: 400, headers: jsonHeaders });
@@ -192,11 +190,8 @@ Deno.serve(async (req) => {
     }
 
     const isAppleReviewBypass =
-      (phone === "0123456789" ||
-        phone === "0987654321" ||
-        phone === "9876543201" ||
-        phone === "9535115316" || // TEMP E2E - remove after seller session
-        phone === "8448802907") && // Staging TestFlight QA until MSG91 secrets are set
+      isOtpBypassEnabled() &&
+      (isQaOtpBypassPhone(phone) || phone === "9535115316") &&
       reqId === "apple-review-bypass" &&
       otp === "1234";
     const mobile = `${country_code}${phone}`;
@@ -211,20 +206,28 @@ Deno.serve(async (req) => {
     if (!isAppleReviewBypass) {
       const [credsResult, rlResult] = await Promise.allSettled([
         getMsg91Creds(),
-        withTimeout(checkRateLimit(rlKey, 12, 600), RATE_LIMIT_TIMEOUT_MS, "otp-verify-rate-limit"),
+        withTimeout(
+          checkRateLimit(rlKey, 12, 600, { failClosed: true }),
+          RATE_LIMIT_TIMEOUT_MS,
+          "otp-verify-rate-limit",
+        ),
       ]);
 
       const rl =
         rlResult.status === "fulfilled"
           ? rlResult.value
-          : { allowed: true, remaining: 12 };
+          : { allowed: false, remaining: 0, retryAfterSeconds: 60 };
       if (rlResult.status === "rejected") {
-        console.warn("[msg91-verify-otp] rate limit timed out; allowing:", rlResult.reason);
+        console.warn("[msg91-verify-otp] rate limit timed out; denying:", rlResult.reason);
       }
       if (!rl.allowed) {
+        const denied = rateLimitResponse(cors, rl.retryAfterSeconds);
         return new Response(
-          JSON.stringify({ error: "Too many verification attempts. Please request a new OTP." }),
-          { status: 429, headers: jsonHeaders },
+          JSON.stringify({
+            error: "Too many verification attempts. Please request a new OTP.",
+            retry_after_seconds: rl.retryAfterSeconds ?? 60,
+          }),
+          { status: 429, headers: denied.headers },
         );
       }
 
@@ -300,9 +303,16 @@ Deno.serve(async (req) => {
       console.log("Apple reviewer bypass - skipping MSG91 verification for demo phone");
       // Light rate limit only; no MSG91 creds needed
       try {
-        await withTimeout(checkRateLimit(rlKey, 12, 600), RATE_LIMIT_TIMEOUT_MS, "otp-verify-rate-limit");
+        const bypassRl = await withTimeout(
+          checkRateLimit(rlKey, 12, 600, { failClosed: true }),
+          RATE_LIMIT_TIMEOUT_MS,
+          "otp-verify-rate-limit",
+        );
+        if (!bypassRl.allowed) {
+          return rateLimitResponse(cors, bypassRl.retryAfterSeconds);
+        }
       } catch {
-        /* allow */
+        return rateLimitResponse(cors, 60);
       }
       authUser = await lookupExistingUser(admin, syntheticEmail, mobile, fullPhone, phone);
     }

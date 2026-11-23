@@ -30,9 +30,19 @@ function trimSlash(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
+/** Ops hard-block: never send WhatsApp to these last-10 digit phones. */
+const BLOCKED_WHATSAPP_LAST10 = new Set([
+  "9632084449", // Akhila / ops exclusion
+]);
+
 function blockedDestination(rawNumber: string): string | null {
   if (/@g\.us|@broadcast|@newsletter/i.test(rawNumber)) {
     return "Group and broadcast destinations are blocked";
+  }
+  const digits = String(rawNumber || "").replace(/\D/g, "");
+  const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+  if (last10 && BLOCKED_WHATSAPP_LAST10.has(last10)) {
+    return "Phone is on WhatsApp send blocklist";
   }
   return null;
 }
@@ -213,6 +223,109 @@ export async function evolutionGoDeleteInstance(instanceId: string) {
   });
 }
 
+export async function evolutionGoSendImage(opts: {
+  number: string;
+  imageUrl: string;
+  caption?: string;
+  instanceId?: string | null;
+  formatJid?: boolean;
+  dryRun?: boolean;
+}): Promise<EvolutionGoSendResult> {
+  const started = Date.now();
+  const rawNumber = String(opts.number || "").trim();
+  const blocked = blockedDestination(rawNumber);
+  if (blocked) {
+    return {
+      success: false,
+      code: "invalid_phone",
+      error: blocked,
+      elapsedMs: Date.now() - started,
+    };
+  }
+  const isJid = /@/.test(rawNumber);
+  const digits = rawNumber.replace(/\D/g, "");
+  const formatJid = opts.formatJid ?? !isJid;
+  const number = isJid ? rawNumber : digits;
+  const imageUrl = String(opts.imageUrl || "").trim();
+  if (!isJid && (digits.length < 10 || digits.length > 15)) {
+    return {
+      success: false,
+      code: "invalid_phone",
+      error: "Invalid phone",
+      elapsedMs: Date.now() - started,
+    };
+  }
+  if (!imageUrl.startsWith("https://")) {
+    return {
+      success: false,
+      code: "evolution_error",
+      error: "imageUrl must be https",
+      elapsedMs: Date.now() - started,
+    };
+  }
+  if (opts.dryRun) {
+    return {
+      success: true,
+      code: "dry_run",
+      providerMessageId: `dryrun_${crypto.randomUUID()}`,
+      elapsedMs: Date.now() - started,
+      raw: { dry_run: true, number, imageUrl },
+    };
+  }
+
+  const caption = String(opts.caption || "").slice(0, 1024);
+  // Evolution Go: POST /send/media with type=image and url=https...
+  // (not /send/image - that path does not exist on Evolution Go)
+  const res = await evoFetch("/send/media", {
+    method: "POST",
+    instanceId: opts.instanceId,
+    body: {
+      number,
+      formatJid,
+      type: "image",
+      url: imageUrl,
+      caption,
+    },
+  });
+
+  if (res.status === 0) {
+    return {
+      success: false,
+      code: "provider_unavailable",
+      error: String(res.json?.error || "Evolution Go unreachable"),
+      elapsedMs: res.elapsedMs,
+      raw: res.json,
+    };
+  }
+  if (!res.ok) {
+    const msg = String(res.json?.error?.message || res.json?.message || res.json?.error || `HTTP ${res.status}`);
+    return {
+      success: false,
+      code: isEvolutionSessionDisconnect(msg) ? "session_disconnected" : "evolution_error",
+      httpStatus: res.status,
+      error: msg,
+      elapsedMs: res.elapsedMs,
+      raw: res.json,
+    };
+  }
+
+  const providerMessageId =
+    res.json?.messageId ||
+    res.json?.data?.Info?.ID ||
+    res.json?.data?.key?.id ||
+    res.json?.key?.id ||
+    undefined;
+
+  return {
+    success: true,
+    code: "ok",
+    httpStatus: res.status,
+    providerMessageId: providerMessageId ? String(providerMessageId) : undefined,
+    raw: res.json,
+    elapsedMs: res.elapsedMs,
+  };
+}
+
 export async function evolutionGoSendText(opts: {
   number: string;
   text: string;
@@ -343,7 +456,11 @@ export type EvolutionGoReplyButton = {
   displayText: string;
 };
 
-/** Interactive reply buttons (max 3). Evolution POST /send/button. */
+/**
+ * Interactive reply buttons (max 3).
+ * Prefer POST /send/carousel (InteractiveMessage) - /send/button often returns
+ * HTTP 200 with a message id but never renders on consumer WhatsApp.
+ */
 export async function evolutionGoSendButtons(opts: {
   number: string;
   title: string;
@@ -365,11 +482,11 @@ export async function evolutionGoSendButtons(opts: {
     };
   }
   const isJid = /@/.test(rawNumber);
-  const digits = rawNumber.replace(/\D/g, "");
+  const digitsOnly = rawNumber.replace(/\D/g, "");
   const formatJid = opts.formatJid ?? !isJid;
-  const number = isJid ? rawNumber : digits;
+  const number = isJid ? rawNumber : digitsOnly;
 
-  if (!isJid && (digits.length < 10 || digits.length > 15)) {
+  if (!isJid && (digitsOnly.length < 10 || digitsOnly.length > 15)) {
     return {
       success: false,
       code: "invalid_phone",
@@ -386,6 +503,54 @@ export async function evolutionGoSendButtons(opts: {
     };
   }
 
+  const footer = opts.footer || "Sociva";
+  const mappedButtons = opts.buttons.map((b) => ({
+    type: "REPLY",
+    id: b.id,
+    displayText: b.displayText,
+  }));
+
+  const carousel = await evoFetch("/send/carousel", {
+    method: "POST",
+    instanceId: opts.instanceId,
+    body: {
+      number,
+      formatJid,
+      body: opts.title,
+      footer,
+      cards: [
+        {
+          header: {
+            title: opts.title,
+            subtitle: "Sociva",
+          },
+          body: {
+            text: String(opts.description || opts.title).slice(0, 900),
+          },
+          footer,
+          buttons: mappedButtons,
+        },
+      ],
+    },
+  });
+
+  if (carousel.ok) {
+    const providerMessageId =
+      carousel.json?.messageId ||
+      carousel.json?.data?.Info?.ID ||
+      carousel.json?.data?.key?.id ||
+      undefined;
+    return {
+      success: true,
+      code: "ok",
+      httpStatus: carousel.status,
+      providerMessageId: providerMessageId ? String(providerMessageId) : undefined,
+      raw: { ...(carousel.json || {}), send_method: "carousel" },
+      elapsedMs: carousel.elapsedMs,
+    };
+  }
+
+  // Legacy fallback - may HTTP-accept without rendering on some devices.
   const res = await evoFetch("/send/button", {
     method: "POST",
     instanceId: opts.instanceId,
@@ -394,7 +559,7 @@ export async function evolutionGoSendButtons(opts: {
       formatJid,
       title: opts.title,
       description: opts.description,
-      footer: opts.footer,
+      footer,
       buttons: opts.buttons.map((b) => ({
         type: "reply",
         id: b.id,
@@ -404,6 +569,10 @@ export async function evolutionGoSendButtons(opts: {
   });
 
   if (!res.ok) {
+    const carouselMsg = String(
+      carousel.json?.error?.message || carousel.json?.error || carousel.json?.message ||
+        `carousel HTTP ${carousel.status}`,
+    );
     const msg = String(
       res.json?.error?.message || res.json?.error || res.json?.message || `HTTP ${res.status}`,
     );
@@ -411,13 +580,13 @@ export async function evolutionGoSendButtons(opts: {
       success: false,
       code: res.status === 0
         ? "provider_unavailable"
-        : isEvolutionSessionDisconnect(msg)
+        : isEvolutionSessionDisconnect(msg) || isEvolutionSessionDisconnect(carouselMsg)
         ? "session_disconnected"
         : "evolution_error",
       httpStatus: res.status || undefined,
-      error: msg,
+      error: `carousel: ${carouselMsg}; button: ${msg}`.slice(0, 240),
       elapsedMs: res.elapsedMs,
-      raw: res.json,
+      raw: { carousel: carousel.json, button: res.json },
     };
   }
 
@@ -432,8 +601,8 @@ export async function evolutionGoSendButtons(opts: {
     code: "ok",
     httpStatus: res.status,
     providerMessageId: providerMessageId ? String(providerMessageId) : undefined,
-    raw: res.json,
-    elapsedMs: res.elapsedMs,
+    raw: { ...(res.json || {}), send_method: "button_fallback" },
+    elapsedMs: Date.now() - started,
   };
 }
 

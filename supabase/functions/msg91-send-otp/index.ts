@@ -1,11 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+import { getClientIp, isOtpBypassEnabled } from "../_shared/client-ip.ts";
+import { isQaOtpBypassPhone } from "../_shared/qa-otp-phones.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
 // Shared across warm isolates - avoid re-querying admin_settings on every OTP
 let _admin: ReturnType<typeof createClient> | null = null;
@@ -81,45 +78,43 @@ async function getMsg91Creds(): Promise<Msg91Creds | null> {
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
+  const cors = corsHeadersFor(req);
   const t0 = Date.now();
 
   try {
     const { phone, country_code = "91", resend = false, reqId } = await req.json();
-    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const clientIp = getClientIp(req);
 
-    const isQaBypassPhone =
-      phone === "0123456789" ||
-      phone === "0987654321" ||
-      phone === "9876543201" ||
-      phone === "8448802907"; // Staging TestFlight QA until MSG91 secrets are set
+    const isQaBypassPhone = isQaOtpBypassPhone(phone);
+    const bypassAllowed = isOtpBypassEnabled();
 
-    if (resend && !reqId && !isQaBypassPhone) {
+    if (resend && !reqId && !(bypassAllowed && isQaBypassPhone)) {
       return new Response(
         JSON.stringify({ error: "Missing request ID for resend" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 400, headers: { ...cors, "Content-Type": "application/json" } },
       );
     }
 
     if (!resend && (!phone || !/^\d{10}$/.test(phone))) {
       return new Response(
         JSON.stringify({ error: "Invalid phone number. Please provide a 10-digit number." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 400, headers: { ...cors, "Content-Type": "application/json" } },
       );
     }
 
-    // Apple Review + QA phones: never call MSG91 (send or retryOtp).
-    // retryOtp on reqId "apple-review-bypass" returns MSG91 708 "error in fetching records".
+    // Apple Review + QA phones: only when ALLOW_OTP_BYPASS is explicitly enabled.
     if (
-      (isQaBypassPhone && country_code === "91") ||
-      reqId === "apple-review-bypass"
+      bypassAllowed &&
+      ((isQaBypassPhone && country_code === "91") || reqId === "apple-review-bypass")
     ) {
       return new Response(
         JSON.stringify({ success: true, message: resend ? "OTP resent" : "OTP sent", reqId: "apple-review-bypass" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { headers: { ...cors, "Content-Type": "application/json" } },
       );
     }
 
@@ -131,21 +126,21 @@ Deno.serve(async (req) => {
     const [credsResult, rlResult] = await Promise.allSettled([
       getMsg91Creds(),
       withTimeout(
-        checkRateLimit(rlKey, resend ? 20 : 8, 600),
+        checkRateLimit(rlKey, resend ? 20 : 8, 600, { failClosed: true }),
         RATE_LIMIT_TIMEOUT_MS,
         "otp-rate-limit",
       ),
     ]);
 
-    // Rate limiter already allows on internal errors; treat timeout the same way
+    // OTP is abuse-sensitive: timeout or limiter failure denies the request.
     const rl =
       rlResult.status === "fulfilled"
         ? rlResult.value
-        : { allowed: true, remaining: resend ? 20 : 8 };
+        : { allowed: false, remaining: 0, retryAfterSeconds: 60 };
     if (rlResult.status === "rejected") {
-      console.warn("[msg91-send-otp] rate limit timed out; allowing:", rlResult.reason);
+      console.warn("[msg91-send-otp] rate limit timed out; denying:", rlResult.reason);
     }
-    if (!rl.allowed) return rateLimitResponse(corsHeaders);
+    if (!rl.allowed) return rateLimitResponse(cors, rl.retryAfterSeconds);
 
     const creds = credsResult.status === "fulfilled" ? credsResult.value : null;
     if (credsResult.status === "rejected") {
@@ -155,7 +150,7 @@ Deno.serve(async (req) => {
       console.error("MSG91 Widget credentials not configured (checked DB + env)");
       return new Response(
         JSON.stringify({ error: "OTP service not configured" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 500, headers: { ...cors, "Content-Type": "application/json" } },
       );
     }
 
@@ -204,7 +199,7 @@ Deno.serve(async (req) => {
           message: resend ? "OTP resent" : "OTP sent",
           reqId: data.reqId || data.message || reqId,
         }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { headers: { ...cors, "Content-Type": "application/json" } },
       );
     }
 
@@ -216,7 +211,7 @@ Deno.serve(async (req) => {
         : raw || "Failed to send OTP. Please try again.";
     return new Response(
       JSON.stringify({ error: friendly }),
-      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { status: 400, headers: { ...cors, "Content-Type": "application/json" } },
     );
   } catch (error) {
     const msg = String((error as Error)?.message || error || "");
@@ -232,7 +227,7 @@ Deno.serve(async (req) => {
           ? "OTP service is slow right now. Please try again."
           : "Internal server error",
       }),
-      { status: timedOut ? 504 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { status: timedOut ? 504 : 500, headers: { ...cors, "Content-Type": "application/json" } },
     );
   }
 });

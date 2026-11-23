@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { IS_STAGING_SUPABASE, supabase } from '@/integrations/supabase/client';
+import { decideMembershipForUser, listPendingMemberships } from '@/lib/society-membership';
 import { escapeIlike } from '@/lib/query-utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Profile, SellerProfile, VerificationStatus, SocietyAdmin } from '@/types/Database';
@@ -40,12 +41,33 @@ export function useSocietyAdmin() {
   const fetchData = async () => {
     if (!societyId) return;
     try {
-      const [usersRes, sellersRes, adminsRes] = await Promise.all([
+      const [usersRes, sellersRes, adminsRes, memberships] = await Promise.all([
         supabase.from('profiles').select('*').eq('society_id', societyId).eq('verification_status', 'pending'),
         supabase.from('seller_profiles').select('*, profile:profiles!seller_profiles_user_id_fkey(name, block, flat_number)').eq('society_id', societyId).eq('verification_status', 'pending'),
         supabase.from('society_admins').select('*, user:profiles!society_admins_user_id_fkey(name)').eq('society_id', societyId).is('deactivated_at', null),
+        listPendingMemberships(societyId),
       ]);
-      setPendingUsers((usersRes.data as Profile[]) || []);
+      const byId = new Map<string, Profile>();
+      for (const row of (usersRes.data as Profile[]) || []) byId.set(row.id, row);
+      for (const row of memberships) {
+        if (!byId.has(row.user_id)) {
+          byId.set(row.user_id, {
+            id: row.user_id,
+            name: row.name || 'Resident',
+            phone: row.phone || '',
+            email: null,
+            flat_number: row.flat_number || '',
+            block: row.block || '',
+            phase: null,
+            avatar_url: null,
+            verification_status: 'pending',
+            society_id: societyId,
+            created_at: row.requested_at || new Date().toISOString(),
+            updated_at: row.requested_at || new Date().toISOString(),
+          } as Profile);
+        }
+      }
+      setPendingUsers([...byId.values()]);
       setPendingSellers((sellersRes.data as any) || []);
       setSocietyAdmins((adminsRes.data as any) || []);
     } catch (error) {
@@ -58,6 +80,17 @@ export function useSocietyAdmin() {
   const updateUserStatus = async (id: string, status: VerificationStatus) => {
     if (!societyId) return;
     try {
+      const decided = await decideMembershipForUser(id, status);
+      if (decided.ok) {
+        await logAudit(`user_${status}`, 'profile', id, societyId, { status, membership: decided.status });
+        adminNotify.success(`User ${status}`);
+        fetchData();
+        return;
+      }
+      if (IS_STAGING_SUPABASE) {
+        adminNotify.error(decided.missing ? 'No pending membership for this user' : decided.error);
+        return;
+      }
       await supabase.from('profiles').update({ verification_status: status }).eq('id', id);
       await logAudit(`user_${status}`, 'profile', id, societyId, { status });
       adminNotify.success(`User ${status}`);

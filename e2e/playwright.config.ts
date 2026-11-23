@@ -107,6 +107,13 @@ export default defineConfig({
       testMatch: /buyer\/discovery-smoke\.spec\.ts/,
       use: { ...devices['Pixel 5'], serviceWorkers: 'block' },
     },
+
+    // Staging API-only RLS (no auth storageState, no local web server required for remote URL).
+    {
+      name: 'cross-society-rls',
+      testMatch: /cross-society-rls\.spec\.ts/,
+      testDir: '.',
+    },
   ],
 
   outputDir: 'test-results',

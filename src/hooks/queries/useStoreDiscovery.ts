@@ -6,6 +6,7 @@ import { useBrowsingLocation } from '@/contexts/BrowsingLocationContext';
 import { MARKETPLACE_RADIUS_KM } from '@/lib/marketplace-constants';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMarketplaceData, RpcSellerRow } from './useMarketplaceData';
+import { sellersInOwnSociety } from '@/lib/store-discovery-society';
 
 export interface TopProduct {
   id: string;
@@ -121,18 +122,19 @@ function mapToNearbySeller(seller: RpcSellerRow): NearbySeller {
  * Derives from shared marketplace data - zero additional RPC calls.
  */
 export function useLocalSellers() {
+  const { effectiveSociety } = useAuth();
   const { data: sellers, isLoading, error } = useMarketplaceData();
 
   const data = useMemo(() => {
     if (!sellers || sellers.length === 0) return {};
     const grouped: Record<string, LocalSeller[]> = {};
-    for (const seller of sellers) {
+    for (const seller of sellersInOwnSociety(sellers, effectiveSociety?.name)) {
       const group = seller.primary_group || 'Other';
       if (!grouped[group]) grouped[group] = [];
       grouped[group].push(mapToLocalSeller(seller));
     }
     return grouped;
-  }, [sellers]);
+  }, [sellers, effectiveSociety?.name]);
 
   return { data, isLoading, error };
 }

@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { MessageCircle, ChevronRight, Heart, ArrowRight } from 'lucide-react';
+import { useEffectiveFeatures } from '@/hooks/useEffectiveFeatures';
+import { MessageCircle, ChevronRight, Heart, ArrowRight, Sparkles } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { jitteredStaleTime } from '@/lib/query-utils';
 import { useMarketplaceLabels } from '@/hooks/useMarketplaceLabels';
@@ -20,12 +21,14 @@ interface RecentPost {
 
 export function CommunityTeaser() {
   const { effectiveSocietyId } = useAuth();
+  const { isFeatureEnabled } = useEffectiveFeatures();
+  const smartGroups = isFeatureEnabled('smart_groups');
   const ml = useMarketplaceLabels();
 
   const { data } = useQuery({
-    queryKey: ['community-teaser', effectiveSocietyId],
+    queryKey: ['community-teaser', effectiveSocietyId, smartGroups],
     queryFn: async () => {
-      const [postsRes, helpRes] = await Promise.all([
+      const [postsRes, helpRes, findHelpRes] = await Promise.all([
         supabase
           .from('bulletin_posts')
           .select('id, title, category, comment_count, vote_count, created_at')
@@ -38,10 +41,19 @@ export function CommunityTeaser() {
           .select('id', { count: 'exact', head: true })
           .eq('society_id', effectiveSocietyId!)
           .eq('status', 'open'),
+        smartGroups
+          ? supabase
+              .from('bulletin_posts')
+              .select('id', { count: 'exact', head: true })
+              .eq('society_id', effectiveSocietyId!)
+              .eq('is_archived', false)
+              .eq('category', 'find_help')
+              .eq('status', 'open')
+          : Promise.resolve({ count: 0 } as any),
       ]);
       return {
         posts: (postsRes.data || []) as RecentPost[],
-        helpCount: helpRes.count || 0,
+        helpCount: (helpRes.count || 0) + (findHelpRes.count || 0),
       };
     },
     enabled: !!effectiveSocietyId,
@@ -54,17 +66,20 @@ export function CommunityTeaser() {
   if (!effectiveSocietyId) return null;
   if (posts.length === 0 && helpCount === 0) return null;
 
+  const sectionLabel = smartGroups ? 'Smart Groups' : ml.label('label_section_community');
+  const Icon = smartGroups ? Sparkles : MessageCircle;
+
   return (
     <div className="px-4 mt-2 mb-2">
       <div className="flex items-center justify-between mb-3">
         <h3 className="section-header">
           <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-            <MessageCircle size={14} className="text-primary" />
+            <Icon size={14} className="text-primary" />
           </div>
-          {ml.label('label_section_community')}
+          {sectionLabel}
         </h3>
         <Link to="/community" className="text-xs font-bold text-primary flex items-center gap-0.5 hover:underline">
-          View all <ChevronRight size={13} />
+          {smartGroups ? 'Open feed' : 'View all'} <ChevronRight size={13} />
         </Link>
       </div>
 
@@ -80,21 +95,21 @@ export function CommunityTeaser() {
               <div className="flex items-center gap-3 py-2.5 px-3 rounded-xl bg-warning/5 border border-warning/10 active:opacity-70 transition-opacity">
                 <Heart size={14} className="text-warning shrink-0" />
                 <span className="text-xs font-semibold text-foreground flex-1 truncate">
-                  {helpCount} neighbor{helpCount !== 1 ? 's' : ''} need{helpCount === 1 ? 's' : ''} help
+                  {helpCount} neighbour{helpCount !== 1 ? 's' : ''} need{helpCount === 1 ? 's' : ''} help
                 </span>
                 <ArrowRight size={13} className="text-muted-foreground shrink-0" />
               </div>
             </Link>
           </motion.div>
         )}
-        
+
         {posts.map((post) => (
           <motion.div key={post.id} variants={listItem}>
             <Link to="/community">
               <div className="flex items-center gap-3 py-2.5 px-3 rounded-xl hover:bg-secondary/50 active:opacity-70 transition-all">
                 <span className="text-xs font-medium text-foreground flex-1 truncate">{post.title}</span>
                 <span className="text-[10px] text-muted-foreground whitespace-nowrap tabular-nums">
-                  {post.comment_count}💬 {post.vote_count}↑
+                  {post.comment_count} replies · {post.vote_count} up
                 </span>
               </div>
             </Link>

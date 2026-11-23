@@ -25,6 +25,8 @@ interface GoogleMapConfirmProps {
   name: string;
   /** Parent is already finishing - disable Confirm and ignore double taps. */
   confirming?: boolean;
+  /** Shown under the title. Use for delivery-pin copy so this is not mistaken for society pick. */
+  hint?: string;
   onConfirm: (lat: number, lng: number, updatedName?: string, formattedAddress?: string) => void;
   onBack: () => void;
 }
@@ -42,6 +44,7 @@ export function GoogleMapConfirm({
   longitude,
   name,
   confirming = false,
+  hint,
   onConfirm,
   onBack,
 }: GoogleMapConfirmProps) {
@@ -273,7 +276,10 @@ export function GoogleMapConfirm({
         >
           <ArrowLeft size={20} className="text-foreground" />
         </button>
-        <h2 className="text-base font-semibold text-foreground">Confirm Location</h2>
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-foreground">Confirm Location</h2>
+          {hint ? <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">{hint}</p> : null}
+        </div>
       </div>
 
       <div className="flex-1 relative" style={{ touchAction: 'none' }}>
@@ -289,7 +295,7 @@ export function GoogleMapConfirm({
 
         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
           <div className="bg-background/90 backdrop-blur-sm text-xs text-muted-foreground px-3 py-1.5 rounded-full shadow-sm border border-border">
-            Move the map to position the location
+            {hint || 'Move the map to position the location'}
           </div>
         </div>
 

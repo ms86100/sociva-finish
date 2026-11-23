@@ -2,13 +2,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
 import { withAuth } from "../_shared/auth.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 import { getCredential, createAdminClient } from "../_shared/credentials.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+/* cors: use corsHeadersFor(req) */
 
 // Strict VPA regex: handle 2-256 chars, no leading/trailing dots/specials,
 // provider must start with letter, 2-64 chars
@@ -48,8 +44,9 @@ async function logValidation(
 }
 
 Deno.serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
   const auth = await withAuth(req, corsHeaders);

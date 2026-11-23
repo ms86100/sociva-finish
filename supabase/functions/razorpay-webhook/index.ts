@@ -7,11 +7,9 @@ import {
   checkFinancialRuntime,
   financialRuntimeUnavailableResponse,
 } from "../_shared/financial-runtime.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-razorpay-signature',
-};
+let corsHeaders: Record<string, string> = {};
 
 async function getRazorpayWebhookSecret(supabase: any): Promise<string | null> {
   // Prefer Deno.env / Vault - never fall back to razorpay_key_secret (wrong HMAC).
@@ -45,8 +43,9 @@ async function sha256Hex(value: string): Promise<string> {
 }
 
 serve(async (req) => {
+  corsHeaders = corsHeadersFor(req);
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
   let eventStore: any = null;

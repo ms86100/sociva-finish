@@ -6,11 +6,12 @@ import {
   checkFinancialRuntime,
   financialRuntimeUnavailableResponse,
 } from "../_shared/financial-runtime.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import {
+  getPaymentGatewayMode,
+  paymentModeBlockedResponse,
+} from "../_shared/payment-gateway-mode.ts";
+import { withAuth } from "../_shared/auth.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 
 interface CreateOrderRequest {
   orderId?: string;
@@ -29,9 +30,12 @@ async function getRazorpayKeys(supabase: any): Promise<{ keyId: string; keySecre
 }
 
 serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
+
+  const cors = corsHeadersFor(req);
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -44,19 +48,15 @@ serve(async (req) => {
       'payment_create_enabled',
     );
     if (!runtime.ready) {
-      return financialRuntimeUnavailableResponse(runtime, corsHeaders);
+      return financialRuntimeUnavailableResponse(runtime, cors);
     }
 
-    const { getPaymentGatewayMode, paymentModeBlockedResponse } = await import(
-      "../_shared/payment-gateway-mode.ts"
-    );
     const gatewayMode = await getPaymentGatewayMode(supabase);
     if (gatewayMode !== "razorpay") {
-      return paymentModeBlockedResponse(gatewayMode, "razorpay", corsHeaders);
+      return paymentModeBlockedResponse(gatewayMode, "razorpay", cors);
     }
 
-    const { withAuth } = await import("../_shared/auth.ts");
-    const authResult = await withAuth(req, corsHeaders);
+    const authResult = await withAuth(req, cors);
     if (authResult instanceof Response) return authResult;
     const user = { id: authResult.userId };
 
@@ -65,12 +65,12 @@ serve(async (req) => {
       console.error('Razorpay keys not configured');
       return new Response(
         JSON.stringify({ error: 'Payment gateway not configured. Please contact admin.' }),
-        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 503, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
 
-    const { allowed } = await checkRateLimit(`order:${user.id}`, 10, 60);
-    if (!allowed) return rateLimitResponse(corsHeaders);
+    const orderRl = await checkRateLimit(`order:${user.id}`, 10, 60, { failClosed: true });
+    if (!orderRl.allowed) return rateLimitResponse(cors, orderRl.retryAfterSeconds);
 
     const body: CreateOrderRequest = await req.json();
     const { sellerId, customerName, customerEmail, customerPhone } = body;
@@ -80,7 +80,7 @@ serve(async (req) => {
     if (allOrderIds.length === 0) {
       return new Response(
         JSON.stringify({ error: 'No order IDs provided' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -99,7 +99,7 @@ serve(async (req) => {
       console.error('Order validation failed. Expected:', allOrderIds.length, 'Found:', orders?.length, 'Missing:', missing);
       return new Response(
         JSON.stringify({ error: 'One or more orders not found, already cancelled, or already paid' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 404, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -112,7 +112,7 @@ serve(async (req) => {
     if (!resolvedSellerId) {
       return new Response(
         JSON.stringify({ error: 'Order is missing seller_id' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
     if (!isMultiSeller && sellerId && sellerId !== resolvedSellerId) {
@@ -124,7 +124,7 @@ serve(async (req) => {
     if (dbAmount <= 0) {
       return new Response(
         JSON.stringify({ error: 'Invalid order total' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
     if (typeof clientAmount === 'number' && Math.abs(clientAmount - dbAmount) > 0.5) {
@@ -179,7 +179,7 @@ serve(async (req) => {
                 notes: existingOrder.notes,
                 reused: true,
               }),
-              { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              { headers: { ...cors, 'Content-Type': 'application/json' } }
             );
           }
           console.log('Existing Razorpay order', existingRzpId, 'not reusable - creating new one');
@@ -254,7 +254,7 @@ serve(async (req) => {
       console.error('Razorpay error:', errorText);
       return new Response(
         JSON.stringify({ error: 'Failed to create payment order', details: errorText }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -283,7 +283,7 @@ serve(async (req) => {
           razorpay_order_id: razorpayOrder.id,
           retryable: true,
         }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } },
       );
     }
 
@@ -296,14 +296,14 @@ serve(async (req) => {
         prefill: { name: customerName, email: customerEmail, contact: customerPhone },
         notes: razorpayOrder.notes,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...cors, 'Content-Type': 'application/json' } }
     );
   } catch (error: unknown) {
     console.error('Error creating order:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } }
     );
   }
 });

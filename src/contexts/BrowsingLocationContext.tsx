@@ -65,25 +65,28 @@ function loadFromStorage(): BrowsingLocation | null {
   return null;
 }
 
-function loadLastKnownLocation(): BrowsingLocation | null {
+function loadLastKnownLocation(userId?: string | null): BrowsingLocation | null {
   try {
     const raw = localStorage.getItem(LAST_KNOWN_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === 'object' && isValidCoordinate(parsed.lat, parsed.lng)) {
-      return {
-        id: parsed.id || 'last-known',
-        label: parsed.label || 'Nearby',
-        lat: parsed.lat,
-        lng: parsed.lng,
-        source: parsed.source || 'society',
-      };
+    if (!parsed || typeof parsed !== 'object' || !isValidCoordinate(parsed.lat, parsed.lng)) return null;
+    // Logged-in users must not inherit another account's pin on a shared device.
+    if (userId) {
+      if (!parsed._user_id || parsed._user_id !== userId) return null;
     }
+    return {
+      id: parsed.id || 'last-known',
+      label: parsed.label || 'Nearby',
+      lat: parsed.lat,
+      lng: parsed.lng,
+      source: parsed.source || 'society',
+    };
   } catch { /* ignore */ }
   return null;
 }
 
-function saveLastKnownLocation(loc: BrowsingLocation) {
+function saveLastKnownLocation(loc: BrowsingLocation, userId?: string | null) {
   try {
     if (isValidCoordinate(loc.lat, loc.lng)) {
       localStorage.setItem(LAST_KNOWN_KEY, JSON.stringify({
@@ -92,6 +95,7 @@ function saveLastKnownLocation(loc: BrowsingLocation) {
         lat: loc.lat,
         lng: loc.lng,
         source: loc.source,
+        _user_id: userId || null,
       }));
     }
   } catch { /* ignore */ }
@@ -135,13 +139,14 @@ export function BrowsingLocationProvider({ children }: { children: React.ReactNo
   const [pendingLocationChange, setPendingLocationChange] = useState<BrowsingLocation | null>(null);
   const previousLocationRef = useRef<BrowsingLocation | null>(null);
 
-  // Bug 4 fix: Clear stale GPS override when user changes (shared device)
+  // Shared device: never keep another account's pin, including legacy keys with no owner.
   useEffect(() => {
     if (!user?.id) return;
     const storedUserId = loadStoredUserId();
-    if (storedUserId && storedUserId !== user.id) {
+    if (storedUserId !== user.id) {
       setOverride(null);
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(LAST_KNOWN_KEY);
     }
   }, [user?.id]);
 
@@ -200,8 +205,11 @@ export function BrowsingLocationProvider({ children }: { children: React.ReactNo
 
   // Fallback chain: override → default delivery address → society → last-known (cold start)
   const browsingLocation = useMemo<BrowsingLocation | null>(() => {
-    // 1. Session/localStorage override
-    if (override) return override;
+    // 1. Session/localStorage override - skip pins owned by another account
+    if (override) {
+      const storedUserId = loadStoredUserId();
+      if (!user?.id || !storedUserId || storedUserId === user.id) return override;
+    }
 
     // 2. Default delivery address (only if it has coordinates)
     if (defaultAddress?.latitude && defaultAddress?.longitude) {
@@ -226,15 +234,15 @@ export function BrowsingLocationProvider({ children }: { children: React.ReactNo
     }
 
     // 4. Last known - unlock marketplace while profile/society RPC is in flight
-    return loadLastKnownLocation();
-  }, [override, defaultAddress, society]);
+    return loadLastKnownLocation(user?.id);
+  }, [override, defaultAddress, society, user?.id]);
 
   // Persist resolved location so the next cold start can skip the coords waterfall
   useEffect(() => {
     if (browsingLocation?.lat && browsingLocation?.lng && browsingLocation.id !== 'last-known') {
-      saveLastKnownLocation(browsingLocation);
+      saveLastKnownLocation(browsingLocation, user?.id);
     }
-  }, [browsingLocation]);
+  }, [browsingLocation, user?.id]);
 
   // Track previous location for distance comparison
   useEffect(() => {

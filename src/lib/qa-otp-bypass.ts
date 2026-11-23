@@ -7,6 +7,8 @@ export const QA_OTP_BYPASS_PHONES = [
   '9535115316',
   // Staging TestFlight QA - MSG91 secrets missing on staging; use OTP 1234
   '8448802907',
+  // Staging join E2E - approved registry / pending membership / no maps
+  '8448802999',
 ] as const;
 
 export const QA_OTP_CODE = '1234';

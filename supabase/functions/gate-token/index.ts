@@ -1,10 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
-};
+/* cors: use corsHeadersFor(req) */
 
 // AES-GCM encryption for token payloads (no PII in QR)
 async function encryptPayload(payload: string, secret: string): Promise<string> {
@@ -68,8 +66,9 @@ async function verifySignature(payload: string, signature: string, secret: strin
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+  const corsHeaders = corsHeadersFor(req);
+  if (req.method === "OPTIONS" || req.method === 'OPTIONS') {
+    return handleCorsPreflight(req);
   }
 
   try {

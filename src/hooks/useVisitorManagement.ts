@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
 import { exportVisitorLog } from '@/lib/csv-export';
 import { showFeedback } from '@/components/FeedbackPopupProvider';
+import { isVisitorRpcAvailable } from '@/lib/society-membership';
 
 type VisitorStatus = 'expected' | 'checked_in' | 'checked_out' | 'cancelled' | 'expired';
 
@@ -53,7 +54,6 @@ export const statusColors: Record<VisitorStatus, string> = {
   expired: 'bg-muted text-muted-foreground',
 };
 
-// P2-3: Use crypto.getRandomValues() for secure OTP generation
 function generateOTP(): string {
   const arr = new Uint32Array(1);
   crypto.getRandomValues(arr);
@@ -124,6 +124,30 @@ export function useVisitorManagement() {
   const handleAddVisitor = async () => {
     if (!visitorName.trim() || !user || !effectiveSocietyId) return;
     setIsSubmitting(true);
+    // Staging: server OTP RPC only. Production keeps legacy path until RPC is promoted.
+    if (isVisitorRpcAvailable()) {
+      const { data, error } = await supabase.rpc('visitor_create_entry' as never, {
+        _visitor_name: visitorName.trim(),
+        _visitor_phone: visitorPhone || null,
+        _visitor_type: visitorType,
+        _purpose: purpose || null,
+        _expected_date: expectedDate || null,
+        _expected_time: expectedTime || null,
+        _is_preapproved: isPreapproved,
+        _is_recurring: isRecurring,
+        _recurring_days: isRecurring && recurringDays.length > 0 ? recurringDays : null,
+        _vehicle_number: vehicleNumber || null,
+      } as never);
+      if (error) { toast.error(friendlyError(error)); }
+      else {
+        const otp = (data as { otp_code?: string } | null)?.otp_code;
+        showFeedback({ title: `Visitor added${otp ? ` OTP: ${otp}` : ''}`, variant: 'success' });
+        setIsAddOpen(false); resetForm(); fetchVisitors();
+      }
+      setIsSubmitting(false);
+      return;
+    }
+    // Legacy production-compatible path (not used when connected to staging).
     const otp = generateOTP();
     const { error } = await supabase.from('visitor_entries').insert({
       society_id: effectiveSocietyId, resident_id: user.id, visitor_name: visitorName.trim(),
@@ -141,18 +165,36 @@ export function useVisitorManagement() {
 
   const handleCheckIn = withLoading(async (id: string) => {
     if (!user) return;
+    if (isVisitorRpcAvailable()) {
+      const { error } = await supabase.rpc('visitor_set_status' as never, { _id: id, _status: 'checked_in' } as never);
+      if (!error) { showFeedback({ title: 'Visitor checked in' }); fetchVisitors(); }
+      else toast.error(friendlyError(error));
+      return;
+    }
     const { error } = await supabase.from('visitor_entries').update({ status: 'checked_in', checked_in_at: new Date().toISOString() }).eq('id', id).eq('resident_id', user.id);
     if (!error) { showFeedback({ title: 'Visitor checked in' }); fetchVisitors(); }
   });
 
   const handleCheckOut = async (id: string) => {
     if (!user) return;
+    if (isVisitorRpcAvailable()) {
+      const { error } = await supabase.rpc('visitor_set_status' as never, { _id: id, _status: 'checked_out' } as never);
+      if (!error) { showFeedback({ title: 'Visitor checked out' }); fetchVisitors(); }
+      else toast.error(friendlyError(error));
+      return;
+    }
     const { error } = await supabase.from('visitor_entries').update({ status: 'checked_out', checked_out_at: new Date().toISOString() }).eq('id', id).eq('resident_id', user.id);
     if (!error) { showFeedback({ title: 'Visitor checked out' }); fetchVisitors(); }
   };
 
   const handleCancel = async (id: string) => {
     if (!user) return;
+    if (isVisitorRpcAvailable()) {
+      const { error } = await supabase.rpc('visitor_set_status' as never, { _id: id, _status: 'cancelled' } as never);
+      if (!error) { showFeedback({ title: 'Visitor entry cancelled' }); fetchVisitors(); }
+      else toast.error(friendlyError(error));
+      return;
+    }
     const { error } = await supabase.from('visitor_entries').update({ status: 'cancelled' }).eq('id', id).eq('resident_id', user.id);
     if (!error) { showFeedback({ title: 'Visitor entry cancelled' }); fetchVisitors(); }
   };

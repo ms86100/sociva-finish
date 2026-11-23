@@ -4,6 +4,8 @@
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createAdminClient } from "../_shared/credentials.ts";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
+import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
 import {
   evolutionGoConnect,
   evolutionGoCreateInstance,
@@ -18,11 +20,7 @@ import {
   loadEvolutionGoEnv,
   upsertCommunicationInstance,
 } from "../_shared/evolution-go.ts";
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+/* cors: use corsHeadersFor(req) */
 
 type Action =
   | "get_config"
@@ -42,7 +40,10 @@ type Action =
   | "messages"
   | "retry_failed_with_active_provider";
 
-async function requireAdmin(req: Request): Promise<{ userId: string; admin: ReturnType<typeof createAdminClient> } | Response> {
+async function requireAdmin(
+  req: Request,
+  corsHeaders: Record<string, string>,
+): Promise<{ userId: string; admin: ReturnType<typeof createAdminClient> } | Response> {
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return new Response(JSON.stringify({ success: false, code: "unauthorized", error: "Unauthorized" }), {
@@ -172,14 +173,27 @@ async function pollQrBase64(instanceId: string | null | undefined, attempts = 6)
   return { qrBase64: null, lastStatus, lastError };
 }
 
+function makeJson(corsHeaders: Record<string, string>) {
+  return (payload: Record<string, unknown>, status = 200) =>
+    new Response(JSON.stringify(payload), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+}
+
 serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req);
+  const json = makeJson(corsHeaders);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsPreflight(req);
   }
 
-  const auth = await requireAdmin(req);
+  const auth = await requireAdmin(req, corsHeaders);
   if (auth instanceof Response) return auth;
   const { userId, admin } = auth;
+
+  const adminRl = await checkRateLimit(`admin-evolution:${userId}`, 60, 60);
+  if (!adminRl.allowed) return rateLimitResponse(corsHeaders, adminRl.retryAfterSeconds);
 
   try {
     const body = (await req.json().catch(() => ({}))) as {
@@ -746,10 +760,3 @@ serve(async (req) => {
     return json({ success: false, code: "unexpected", error: String(e) }, 500);
   }
 });
-
-function json(payload: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
-}
