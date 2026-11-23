@@ -70,6 +70,11 @@ async function pinNearSalon(page: Page) {
       const key = localStorage.key(i);
       if (key && key.startsWith('sociva_update_dismissed_')) localStorage.removeItem(key);
     }
+    try {
+      sessionStorage.removeItem('sociva_force_update_preview');
+    } catch {
+      // ignore
+    }
   }, NEAR_SALON);
 }
 
@@ -136,6 +141,42 @@ test('an enabled app update on Android offers only Google Play', async ({ page }
   await expect(page.getByText('A better Sociva is ready')).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: 'Android - Update' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'iOS - Update' })).toHaveCount(0);
+});
+
+async function clearForceUpdatePreview(page: Page) {
+  await page.addInitScript(() => {
+    try {
+      sessionStorage.removeItem('sociva_force_update_preview');
+    } catch {
+      // ignore
+    }
+  });
+}
+
+test('hard gate on Android opens Google Play only and has no skip', async ({ page }) => {
+  await clearForceUpdatePreview(page);
+  await page.goto('/#/?force_update_preview=android');
+  await expect(page.locator('#boot-splash')).toBeHidden({ timeout: 45_000 });
+  await expect(page.getByRole('heading', { name: 'App update is required' })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByRole('button', { name: 'Update on Google Play' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Update on the App Store' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Not now' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Skip this version' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Home' })).toHaveCount(0);
+});
+
+test('hard gate on iOS opens the App Store only and has no skip', async ({ page }) => {
+  await clearForceUpdatePreview(page);
+  await page.goto('/#/?force_update_preview=ios');
+  await expect(page.locator('#boot-splash')).toBeHidden({ timeout: 45_000 });
+  await expect(page.getByRole('heading', { name: 'App update is required' })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(page.getByRole('button', { name: 'Update on the App Store' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Update on Google Play' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Home' })).toHaveCount(0);
 });
 
 test('an enabled app update on iOS offers only the App Store', async ({ page }) => {

@@ -108,6 +108,10 @@ describe('permission lifecycle phases 2-4 (source)', () => {
     expect(banner).toMatch(/shouldShowSoftUpdate|latest_version/);
     expect(banner).toMatch(/dismissUpdateVersion/);
     expect(gate).toMatch(/openAppStoreUrl/);
+    expect(gate).not.toMatch(/Not now|Skip this version/i);
+    expect(gate).toMatch(/App update is required/);
+    expect(gate).toMatch(/Update the app/);
+    expect(gate).toMatch(/forceUpdateCta/);
     expect(policy).toMatch(/isVersionBelow|shouldShowSoftUpdate/);
     expect(policy).toMatch(/Wait for App\.getInfo|if \(!installed\) return false/);
   });

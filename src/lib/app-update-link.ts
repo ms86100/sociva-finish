@@ -28,6 +28,14 @@ const ANDROID_BUTTON: StoreUpdateButton = {
   url: ANDROID_PLAY_STORE_URL,
 };
 
+/** Hard gate: one store, matching the phone. Never both. Never a skip. */
+export function forceUpdateCta(platform: string): StoreUpdateButton {
+  if (/android/i.test(platform)) {
+    return { id: 'android', label: 'Update on Google Play', url: ANDROID_PLAY_STORE_URL };
+  }
+  return { id: 'ios', label: 'Update on the App Store', url: IOS_APP_STORE_URL };
+}
+
 /** Native shows only the matching store. Web shows both, each with a fixed URL. */
 export function storeUpdateButtons(platform: string): StoreUpdateButton[] {
   if (/android/i.test(platform)) return [ANDROID_BUTTON];

@@ -14,6 +14,24 @@ WHERE NOT EXISTS (
   SELECT 1 FROM public.parking_slots WHERE slot_number = 'ssvqa-gf-p1'
 );
 
+INSERT INTO public.parking_slots (society_id, slot_number, slot_type, is_assigned, is_visitor_slot)
+SELECT 'c9dbcc17-7833-44e2-80d8-c4809a6026ec', 'ssvqa-palm-p1', 'car', false, false
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.parking_slots WHERE slot_number = 'ssvqa-palm-p1'
+);
+
+INSERT INTO public.society_workers (society_id, name, worker_type, is_active)
+SELECT 'c9dbcc17-7833-44e2-80d8-c4809a6026ec', 'ssvqa-palm-worker', 'general', true
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.society_workers WHERE name = 'ssvqa-palm-worker'
+);
+
+INSERT INTO public.society_workers (society_id, name, worker_type, is_active)
+SELECT '94a7124c-a692-4d66-981f-0227b1317199', 'ssvqa-lv-worker', 'general', true
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.society_workers WHERE name = 'ssvqa-lv-worker'
+);
+
 INSERT INTO public.parcel_entries (society_id, resident_id, flat_number, courier_name, tracking_number, description, status)
 SELECT '94a7124c-a692-4d66-981f-0227b1317199', '6e6cebbb-9e31-45aa-a0e3-7ff551f1c58d', 'QA', 'SSVQA Courier', 'ssvqa-lv-trk', 'Lakeview isolation parcel', 'received'
 WHERE NOT EXISTS (

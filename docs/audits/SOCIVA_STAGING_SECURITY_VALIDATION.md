@@ -23,10 +23,22 @@ The original body below is the morning adversarial pass. It is still the invento
 | SSV-010 | `conversations_is_member` EXECUTE missing | Granted to authenticated |
 | Anon RLS | After helper REVOKE, logged-out marketplace 401 | Anon EXECUTE restored on false-returning wrappers; products/sellers/categories return rows |
 | Seller self-approve | POST/PATCH `verification_status=approved` 201 | Trigger 403; draft/pending still allowed |
+| SSV-012 | Approved stores globally readable + bank columns | Storefront SELECT; bank columns not granted to anon |
+| SSV-013 | Spoofed `_buyer_society_id` on search | Wrapper pins `get_user_society_id(auth.uid())`; VOLATILE |
+| SSV-014 | Cross-society `products` SELECT | Society / cart / prior-order / admin; opted-in via RPC |
+| SSV-015 | Parking / workers / gate read without CAF | Membership AND `can_access_feature` on hub + satellite ops tables; Palm Core JWT empty |
+| SSV-016 | PERMISSIVE leftover writes without CAF | Folded CAF into the same policy (no membership-only OR leftover); notices already AND-gated |
+| SSV-017 | Membership vs `profiles.society_id` | Staging cutover closed: backfill 0 missing rows; membership-only helper; pending stays null. Production still HOLD |
+| SSV-018 | `builder_societies` SELECT `USING (true)` | Scoped SELECT: own society / builder member / society admin / platform admin. Anon 401; resident POST 403 |
+| SSV-019 | Hub SELECT isolation | JWT retest Stage2 A vs B: parking, parcels, notices, visitors, gate, bulletin own-society only |
+| SSV-020 | Cross-society chat | B open A 400 `Recipient must be a verified resident in your society`; B send A conv 400 `Not a member`; A open A2 200 pending |
+| SSV-021 | Membership request / decide | One-active: A request B 400 `Already an active member of another society`. Resident decide pending 403. Anon request 401. RPCs VOLATILE + rate limited |
+| SSV-022 | `admin_assign_society_package` | Resident 400 `not authorized`. Platform admin fake package 400 `package not found` (authz passed). VOLATILE + rate limited |
+| SSV-023 | Visitor redeem / set_status | Resident B redeem 403 `Not a guard`. Guard B OTP scoped 400 `OTP not valid for this society`. B/guard B set_status on A visitor 403. Redeem 10/60s, set_status 30/60s, VOLATILE |
 
-Still **open on staging:** marketplace SSV-012/013/014, visitor OTP/Authorized Persons, guard/suspended/society-admin/Palm JWTs (NOT TESTED).
+Still **open on staging:** visitor OTP hashing / Authorized Persons (SSV-006 plaintext OTP remains), pending/suspended JWTs, `notify-help-request`. Live production SSV-017 remains a hold (see `SSV017_PRODUCTION_MEMBERSHIP_HOLD.md`).
 
-**Production is not this model.** Do not treat staging closures as live. Production `user_roles` still has an INSERT policy `Users can insert default role` with `with_check = (user_id = auth.uid())` and **no role limit**. That is a live privilege-escalation hole. See `SOCIVA_PRODUCTION_MIGRATION_READINESS.md`.
+**Production is not this model.** Do not treat staging closures as live. Production `get_user_society_id` still reads `profiles.society_id`. The `user_roles` INSERT tautology was dropped on production as a separate hotfix. Do not copy staging membership wrappers onto production.
 
 **Final decision: NO-GO** for production promotion of the staging membership architecture, and **NO-GO** for exposing Visitor Management to real residents, until the production `user_roles` insert is hotfixed and the remaining SSV items are closed.
 
@@ -162,7 +174,7 @@ Legend: `GUS` = `get_user_society_id`; `CAF` = `can_access_feature`; `ADM` = `is
 | `security_staff` | | `society_id` | GUS | GUS | GUS | | yes | no | **no admin on these three** | |
 | `society_admins` | | `society_id` | members OR admin | `is_society_admin` ALL | same | same | yes on SELECT | no | yes SELECT | |
 | `user_roles` | `id` | n/a | own OR admin | **Closed on staging:** `user_roles_insert_self_buyer` (`user_id = uid AND role = buyer` only). Original `merged_user_roles_insert` tautology is gone here. **Still live on production** (`Users can insert default role`). | admin ALL | admin ALL | no | no | yes | INSERT true (buyer only) |
-| `builder_societies` | | `society_id` | **`USING (true)`** | admin ALL | admin | admin | no | no | yes | |
+| `builder_societies` | | `society_id` | **Closed on staging:** `builder_societies_select_scoped` (admin / society_admin / active membership of that society / builder_members). Anon SELECT revoked. | admin ALL | admin | admin | no | no | yes | |
 | `feature_packages` | | n/a | `USING (true)` for authenticated | admin | admin | admin | no | no | yes | |
 | `society_feature_overrides` | | `society_id` | GUS | GUS | GUS | | yes | no | no | |
 | `society_workers` | | `society_id` | GUS | GUS | GUS | | yes | no on soc_* | | |
@@ -471,18 +483,18 @@ Do not scale CPU/RAM to paper over SSV-001/002 or plaintext OTP.
 | SSV-012 | HIGH | Approved `seller_profiles` globally readable, including `sell_beyond_community=false`. Bank columns selectable. |
 | SSV-013 | HIGH | `search_products_v2` accepts spoofed `_buyer_society_id` and sets `is_same_society`. |
 | SSV-014 | HIGH | `products` SELECT returns other societies' catalog to a Lakeview JWT. |
-| SSV-015 | HIGH | Parking / several ops tables have **no** `can_access_feature` in live policies. UI gate only. |
-| SSV-016 | MEDIUM | PERMISSIVE leftover feature-gate writes on notices / manual entry / workforce (migrations). Live merge state not fully row-tested. |
-| SSV-017 | HIGH | Production membership model is not this model. Staging PASS != production PASS. |
-| SSV-018 | LOW | `builder_societies` SELECT `USING (true)`. |
-| SSV-019 | PASS | Hub SELECT isolation (parking, parcels, notices, visitors, workers, gate, bulletin empty) for Lakeview vs Greenfield. |
-| SSV-020 | PASS | Chat open/send RPCs reject cross-society. |
-| SSV-021 | PASS | Membership RPC one-active rule and `decide` authz. |
-| SSV-022 | PASS | `admin_assign_society_package` server-side `is_admin`. |
-| SSV-023 | PASS | Visitor redeem/set_status reject non-guard / other society. |
+| SSV-015 | CLOSED (staging) | Parking, workers, gate, manual_entry, attendance, leave, salary, jobs, guard roster, domestic help: membership AND CAF. Palm JWT 200 `[]` / insert 403. Lakeview still reads own rows. |
+| SSV-016 | CLOSED (staging) | Leftover membership-only PERMISSIVE writes folded into the CAF policy. Notices already AND CAF. Zero leftover without CAF on those tables. |
+| SSV-017 | CLOSED (staging) / HOLD (production) | Staging: idempotent backfill, membership-only `sociva_private.get_user_society_id`, JWT pin + hub isolation. Dual-read skipped so pending `profiles.society_id` cannot open hub. Production still has no `society_memberships`. |
+| SSV-018 | CLOSED (staging) | Dropped `USING (true)`. Resident A/B each see 1 own-society row; platform admin sees 4; anon 401; resident POST 403. Writes still admin RLS. Production still `USING (true)`. |
+| SSV-019 | CLOSED (staging) | Stage2 A vs B JWT: parking/parcels/notices/visitors/gate/bulletin own society only. B parking/parcels/gate/bulletin empty. Workers empty both (no Stage2 worker rows). Chat RPCs remain VOLATILE. |
+| SSV-020 | CLOSED (staging) | B `conversations_open_or_request` A: 400 recipient-not-in-society. B `conversations_send_message` A conv: 400 `Not a member`. A open A2: 200 pending. Anon open 401. |
+| SSV-021 | CLOSED (staging) | JWT 2026-11-24: A request B 400 one-active; A decide pending 403; anon 401. `request_society_membership` 8/hour, `decide_society_membership` 30/60s, both VOLATILE. |
+| SSV-022 | CLOSED (staging) | JWT: resident assign 400 `not authorized`; platform admin fake package 400 `package not found`. `admin_assign_society_package` 30/60s VOLATILE. |
+| SSV-023 | CLOSED (staging) | JWT: resident B redeem 403 not a guard; Guard B dummy OTP 400 not valid for this society; B and Guard B set_status on A visitor 403. Rate limits added on staging (`ssv023_visitor_rpc_rate_limit`). OTP hashing still open (SSV-006). |
 | SSV-024 | PASS | JWT `user_metadata` spoof does not set `is_admin()` (once `user_roles` is clean). |
 | SSV-025 | PASS | One-active unique index present; do not drop it. |
-| SSV-026 | NOT TESTED | Resident A, pending, suspended, real guards, Palm Core-only JWT, visitor create/replay, storage objects, `notify-help-request`, offline kiosk. |
+| SSV-026 | PARTIAL | Palm Core-only JWT tested for parking/workers/gate/notices (empty + insert 403). Still NOT TESTED: pending, suspended, real guards, visitor create/replay, storage objects, `notify-help-request`, offline kiosk. |
 
 ---
 

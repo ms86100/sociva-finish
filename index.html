@@ -90,7 +90,12 @@
           if (!appPages[seller[1]]) blocked = true;
         }
         if (!blocked) return;
-        location.replace(location.pathname + location.search + '#/landing');
+        var query = raw.indexOf('?') >= 0 ? raw.slice(raw.indexOf('?')) : '';
+        var preview = (query.match(/force_update_preview=(android|ios)/) || [])[1];
+        if (preview) {
+          try { sessionStorage.setItem('sociva_force_update_preview', preview); } catch (e2) {}
+        }
+        location.replace(location.pathname + location.search + '#/landing' + query);
       } catch (e) {}
     })();
   </script>
