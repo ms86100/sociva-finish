@@ -103,13 +103,23 @@ export function useVisitorManagement() {
     if (!effectiveSocietyId || !user) return;
     setIsLoading(true);
     const today = new Date().toISOString().split('T')[0];
-    let query = supabase.from('visitor_entries').select('*').eq('resident_id', user.id).order('created_at', { ascending: false });
+    let query = supabase.from('visitor_entries').select(
+      'id, visitor_name, visitor_phone, visitor_type, purpose, expected_date, expected_time, is_preapproved, is_recurring, recurring_days, status, checked_in_at, checked_out_at, vehicle_number, flat_number, created_at'
+    ).eq('resident_id', user.id).order('created_at', { ascending: false });
     if (activeTab === 'today') query = query.eq('expected_date', today);
     else if (activeTab === 'upcoming') query = query.gt('expected_date', today);
     else if (activeTab === 'history') query = query.in('status', ['checked_out', 'cancelled', 'expired']);
     const { data, error } = await query.limit(50);
     if (error) { toast.error('Could not load visitors. Please try again.'); console.error(error); }
-    setVisitors((data as VisitorEntry[]) || []);
+    let rows = (data as VisitorEntry[]) || [];
+    if (isVisitorRpcAvailable() && rows.some((row) => row.status === 'expected' && !row.otp_code)) {
+      const { data: otps } = await supabase.rpc('visitor_list_own_otps' as never);
+      const map = (otps || {}) as Record<string, string>;
+      rows = rows.map((row) => (
+        row.otp_code || !map[row.id] ? row : { ...row, otp_code: map[row.id] }
+      ));
+    }
+    setVisitors(rows);
     setIsLoading(false);
   }, [effectiveSocietyId, user, activeTab]);
 
@@ -166,9 +176,7 @@ export function useVisitorManagement() {
   const handleCheckIn = withLoading(async (id: string) => {
     if (!user) return;
     if (isVisitorRpcAvailable()) {
-      const { error } = await supabase.rpc('visitor_set_status' as never, { _id: id, _status: 'checked_in' } as never);
-      if (!error) { showFeedback({ title: 'Visitor checked in' }); fetchVisitors(); }
-      else toast.error(friendlyError(error));
+      toast.error('The guard must redeem the visitor OTP at the gate. Residents cannot skip check-in.');
       return;
     }
     const { error } = await supabase.from('visitor_entries').update({ status: 'checked_in', checked_in_at: new Date().toISOString() }).eq('id', id).eq('resident_id', user.id);

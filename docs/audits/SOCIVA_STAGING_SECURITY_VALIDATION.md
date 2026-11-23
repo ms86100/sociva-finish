@@ -28,19 +28,27 @@ The original body below is the morning adversarial pass. It is still the invento
 | SSV-014 | Cross-society `products` SELECT | Society / cart / prior-order / admin; opted-in via RPC |
 | SSV-015 | Parking / workers / gate read without CAF | Membership AND `can_access_feature` on hub + satellite ops tables; Palm Core JWT empty |
 | SSV-016 | PERMISSIVE leftover writes without CAF | Folded CAF into the same policy (no membership-only OR leftover); notices already AND-gated |
-| SSV-017 | Membership vs `profiles.society_id` | Staging cutover closed: backfill 0 missing rows; membership-only helper; pending stays null. Production still HOLD |
+| SSV-017 | Membership vs `profiles.society_id` | Staging cutover closed. Production cutover closed 2026-11-24: memberships table + active backfill for every profile with society_id + JWT-pinned helper. CAF/visitor not copied |
 | SSV-018 | `builder_societies` SELECT `USING (true)` | Scoped SELECT: own society / builder member / society admin / platform admin. Anon 401; resident POST 403 |
 | SSV-019 | Hub SELECT isolation | JWT retest Stage2 A vs B: parking, parcels, notices, visitors, gate, bulletin own-society only |
 | SSV-020 | Cross-society chat | B open A 400 `Recipient must be a verified resident in your society`; B send A conv 400 `Not a member`; A open A2 200 pending |
 | SSV-021 | Membership request / decide | One-active: A request B 400 `Already an active member of another society`. Resident decide pending 403. Anon request 401. RPCs VOLATILE + rate limited |
 | SSV-022 | `admin_assign_society_package` | Resident 400 `not authorized`. Platform admin fake package 400 `package not found` (authz passed). VOLATILE + rate limited |
 | SSV-023 | Visitor redeem / set_status | Resident B redeem 403 `Not a guard`. Guard B OTP scoped 400 `OTP not valid for this society`. B/guard B set_status on A visitor 403. Redeem 10/60s, set_status 30/60s, VOLATILE |
+| SSV-024 | JWT metadata spoof | `user_metadata` role/society write 200; `is_admin()` still false for self and other user |
+| SSV-025 | One-active membership | Unique index kept. Direct second-society INSERT 403. `request_society_membership` 400 already an active member |
+| SSV-026 | Pending/suspended + visitor + notify | Pending/suspended parking `[]` and visitor create 403. Guard A redeem then replay 400. Anon notify 401. B notify A 403. Payment-proofs foreign-folder JPEG 403 RLS; own folder allowed then deleted |
+| SSV-008 | `notify-help-request` unauthenticated societyId | Closed on staging: JWT `withAuth`, ignore body societyId/authorId, VOLATILE RPC + 8/hour RL, queue cap 200, membership-scoped |
+| SSV-006 | Visitor OTP plaintext + client `otp_code` filter | Closed on staging: `otp_hash` (bfcrypt), column GRANT omits `otp_code`/`otp_hash`, guard lookup/redeem RPCs, resident list via `visitor_list_own_otps` |
+| SSV-007 | Resident skip-OTP check-in | Closed on staging: `visitor_set_status(..., checked_in)` 403 unless guard/admin |
+| SSV-009 | Bulletin snag `_auto` | Closed on staging: `_auto` only from trigger / service_role / admin; B JWT 403 |
+| SSV-011 | Feature catalog of any society | Closed on staging: JWT pin to `sociva_private.get_user_society_id`; B catalog for A is 0 rows; A own catalog 32. Kept **STABLE** (used by CAF RLS) |
 
-Still **open on staging:** visitor OTP hashing / Authorized Persons (SSV-006 plaintext OTP remains), pending/suspended JWTs, `notify-help-request`. Live production SSV-017 remains a hold (see `SSV017_PRODUCTION_MEMBERSHIP_HOLD.md`).
+The original leftover 8 staging items (006, 007, 008, 009, 011, 024, 025, 026) are **closed on staging**. Offline kiosk / Authorized Persons in redeem is still untested (026 leftover, not in that 8). Do not copy staging CAF or visitor RPCs onto production until asked.
 
-**Production is not this model.** Do not treat staging closures as live. Production `get_user_society_id` still reads `profiles.society_id`. The `user_roles` INSERT tautology was dropped on production as a separate hotfix. Do not copy staging membership wrappers onto production.
+**Production is not this visitor/CAF model.** Staging closures are not live visitor RPCs. Production 017 membership cutover is closed (JWT-pinned helper + 233 active rows). Client join on production still PATCHes `profiles.society_id`. Do not copy staging CAF or visitor RPCs onto production.
 
-**Final decision: NO-GO** for production promotion of the staging membership architecture, and **NO-GO** for exposing Visitor Management to real residents, until the production `user_roles` insert is hotfixed and the remaining SSV items are closed.
+**Final decision: NO-GO** for production promotion of staging CAF/visitor RPCs. Hub membership isolation on staging is closed. Visitor Management stays off for real production residents until those RPCs are separately authorized.
 
 This is not a UI audit. Several hub modules **work**. That is not the same as being correctly restricted, safe under malicious requests, or production-ready.
 
@@ -341,7 +349,7 @@ The second clause allows **any** `user_role` enum value (`buyer`, `seller`, `adm
 
 **SSV-005 HIGH** - `is_admin` executable by `anon`. Confirmed `true` without a user JWT.
 
-**SSV-006 HIGH** - `visitor_guard_redeem_otp` has **no rate limit**, 6-digit numeric OTP stored in plaintext, SELECT policy exposes `otp_code` to any member of that society. Guard UI still does client lookup:
+**SSV-006 HIGH** - Closed on staging. Redeem/lookup are VOLATILE and share `visitor_redeem_otp` 10/60s. OTP is hashed (`otp_hash` bcrypt). Authenticated has column SELECT on non-secret fields only; `select=otp_code` is 403. Guard staging UI uses `visitor_guard_lookup_otp`, not `.eq('otp_code')`. Residents load their own codes via `visitor_list_own_otps` (VOLATILE, 20/60s). Legacy production kiosk path still filters `otp_code` when `IS_STAGING_SUPABASE` is false. Original client lookup (kept as inventory):
 
 ```43:50:src/components/guard/GuardVisitorOTPTab.tsx
     const { data, error } = await supabase
@@ -353,15 +361,15 @@ The second clause allows **any** `user_role` enum value (`buyer`, `seller`, `adm
 
 `societyId` is a prop (frontend-controlled). Cross-society SELECT still failed for Lakeview, so this is intra-society OTP dump + kiosk prop spoof, not a cross-tenant read in this test.
 
-**SSV-007 MEDIUM** - `visitor_set_status` allows the resident to mark their own entry `checked_in` without guard OTP (source). Cross-society call denied. Intra-society skip-OTP **NOT TESTED** (would mutate).
+**SSV-007 MEDIUM** - Closed on staging. Resident A JWT `visitor_set_status(checked_in)` on own expected visitor is 403 `Check-in requires a guard OTP redeem`. Residents may still cancel/check-out their own row. Guard/admin check-in remains the gate redeem path.
 
-**SSV-008 HIGH** - `notify-help-request` Edge Function takes `societyId` / `authorId` from body, **no JWT** (source review). **NOT TESTED** live (would fan out pushes).
+**SSV-008 HIGH** - Closed on staging. `notify-help-request` requires JWT (`withAuth`, `verify_jwt: true`). Client `societyId` / `authorId` ignored. `notify_help_request(_help_request_id)` is VOLATILE, JWT-pins society via `get_user_society_id`, author/requester check, 8/hour `sociva_assert_rate_limit`, Edge `checkRateLimit` 8/hour, enqueue `notification_queue` from active `society_memberships` (cap 200, idempotency `help_request:id:user`). Anon 401. Society B JWT on Society A help request 403. Fair-use trigger on the queue still applies.
 
-**SSV-009 MEDIUM** - `convert_bulletin_post_to_snag(..., _auto := true)` skips author/admin (source). **NOT TESTED** live.
+**SSV-009 MEDIUM** - Closed on staging. `_auto` is allowed only when `pg_trigger_depth()>0` or `service_role` or admin. Society B JWT `_auto: true` on Society A post is 403 `Not authorized`. Wrapper stays VOLATILE with `sociva_assert_rate_limit` 20/60s.
 
 **SSV-010 MEDIUM** - `conversations_is_member` EXECUTE missing for `authenticated`, so table SELECT errors instead of returning empty. Isolation holds; admin cannot read via PostgREST either. Chat RPCs are DEFINER and still run for members.
 
-**SSV-011 LOW** - `get_effective_society_features` / `can_access_feature` have no membership check. Feature catalog of any society is readable.
+**SSV-011 LOW** - Closed on staging. `get_effective_society_features` returns no rows for authenticated callers whose membership society is not `_society_id` (admins excepted). B JWT catalog for A is `[]`; A own catalog is 32 rows. Function is **STABLE** on purpose: CAF RLS (`is_feature_enabled_for_society`) calls it, so a VOLATILE `sociva_assert_rate_limit` here 405s hub SELECTs (`SELECT FOR UPDATE` in a read-only transaction). Do not add write-rate-limits on this RPC.
 
 Search path on reviewed DEFINER functions is `public` (not `pg_catalog, public` in all cases, but `SET search_path TO 'public'` is present on the membership/visitor set). Rate limit RPCs that write `rate_limits` are VOLATILE as required (`request_society_membership`, `decide_society_membership`, `admin_assign_society_package`).
 
@@ -413,10 +421,10 @@ Headline (read-only production snapshot taken during this audit, no writes):
 
 | Item | Staging `wwuanzbusxoyzixuprxs` | Production `kkzkuyhgdvyecmxtmkpy` |
 |---|---|---|
-| `society_memberships` | yes, FORCE RLS | **does not exist** |
+| `society_memberships` | yes, FORCE RLS | yes, FORCE RLS (233 active, 2026-11-24 cutover) |
 | `request_society_membership` / `decide_society_membership` | yes | **no** |
 | `visitor_create_entry` / `visitor_guard_redeem_otp` | yes | **no** |
-| `get_user_society_id` | active membership | `SELECT society_id FROM profiles` |
+| `get_user_society_id` | active membership, JWT-pinned | active membership, JWT-pinned (2026-11-24) |
 | `visitor_entries` policies | SELECT society + feature; writes revoked | **SELECT only** (`Society members can view visitor entries`) |
 | `profiles` SELECT | same-society (global policy dropped) | **`Users can view all approved profiles` still live** |
 | Public RLS policy count | 583 | 593 |
@@ -431,20 +439,20 @@ Compared with a MyGate-style resident/guard loop.
 
 | Capability | State | Evidence |
 |---|---|---|
-| Resident creates pre-approved pass | Implemented (RPC `visitor_create_entry`, server OTP, 24h expiry) | Source `20261123220100_go_vm_visitor_rls_rpcs_staging.sql`. Create **NOT TESTED** this pass (write) |
+| Resident creates pre-approved pass | Implemented (RPC `visitor_create_entry`, server OTP, 24h expiry, 8/hour RL, VOLATILE) | Stage2 JWT 2026-11-24: A create 200; pending C 403 Active society membership required |
 | Apartment / occupancy check | Partial | RPC uses caller membership society, not a verified unit occupancy table |
 | Guard assigned to society | Implemented in RPC (`security_staff` or society/platform admin) | Redeem as resident: `Not a guard for this society` |
-| OTP security | Partial | Server-generated 6-digit, stored plaintext, no hash, no RPC rate limit |
+| OTP security | Closed on staging | Server-generated 6-digit, `otp_hash` bcrypt, columns revoked, lookup/redeem 10/60s VOLATILE |
 | Token expiration | Implemented in RPC (`otp_expires_at > now()`) | Expired Greenfield (non-Tower H) rows exist; not redeemed |
-| Replay protection | Implemented as status flip to `checked_in` | **NOT TESTED** |
+| Replay protection | Implemented as status flip to `checked_in` | Guard A first redeem 200 checked_in; second redeem 400 OTP not valid for this society |
 | Walk-in approval | Partial | `manual_entry_requests` GUS RLS; Authorized Persons **not** in redeem RPC |
 | Entry/exit audit | Partial | `gate_entries` + visitor status timestamps; FORCE RLS on gate |
 | Authorized Persons in kiosk | **Missing** | Table + `AuthorizedPersonsPage` exist. `visitor_guard_redeem_otp` does not consult `authorized_persons` |
 | Society isolation | **PASS** for tested SELECT/redeem | Lakeview JWT saw 0 of 22 visitor rows |
-| Rate limiting | Missing on visitor RPCs | Membership RPCs are limited; visitor create/redeem are not |
+| Rate limiting | Create + redeem + set_status limited | `visitor_create_entry` 8/hour VOLATILE; redeem/lookup 10/60s; set_status 30/60s; list_own_otps 20/60s. OTP hashed (SSV-006 closed on staging) |
 | Offline / poor network | **NOT TESTED** | No offline queue in kiosk |
 
-**Do not expose Visitor Management to real residents** until SSV-001, SSV-002, OTP hashing/rate-limit, guard JWTs, and Authorized Persons kiosk checks are fixed and retested.
+**Do not expose Visitor Management to real production residents** until staging CAF/visitor RPCs are separately authorized on production. Staging leftover: Authorized Persons / offline kiosk.
 
 ---
 
@@ -456,12 +464,12 @@ Not a hardware recommendation. Observed from live indexes and policy shape:
 |---|---|---|
 | `get_user_society_id` in almost every hub policy | STABLE DEFINER, unique index `society_memberships_one_active_user` | Per-statement cache helps; still a sequential helper on every row check |
 | No index on `visitor_entries(society_id, otp_code)` | Indexes: society+created, society+status, resident_id, pkey | Guard OTP lookup and brute force are seq scans; 6-digit space |
-| `get_effective_society_features` / `can_access_feature` unauthenticated to any JWT | No membership predicate | Extra catalog reads, not the main RLS cost |
+| `get_effective_society_features` JWT-pinned, STABLE | Membership society must match `_society_id` | Catalog isolation closed; do not add write-rate-limits (CAF RLS) |
 | Advisor `authenticated_security_definer_function_executable` = 360 | DEFINER surface | Each call bypasses RLS of underlying tables |
 | Chat policy calls `conversations_is_member` | Missing EXECUTE -> 403 | Broken SELECT path; RPCs still used by UI |
 | N+1 entitlement in UI | `useEffectiveFeatures` plus per-component `FeatureGate` | Client-side; does not replace RLS |
 
-Do not scale CPU/RAM to paper over SSV-001/002 or plaintext OTP.
+Do not scale CPU/RAM to paper over remaining RLS gaps. Staging visitor OTP is hashed.
 
 ---
 
@@ -474,27 +482,27 @@ Do not scale CPU/RAM to paper over SSV-001/002 or plaintext OTP.
 | SSV-003 | HIGH | `get_user_auth_context` IDOR of any profile + roles + seller rows. |
 | SSV-004 | HIGH | `get_user_society_id` / `has_active_society_membership` IDOR oracles. |
 | SSV-005 | HIGH | Anon `is_admin(uuid)` oracle. |
-| SSV-006 | HIGH | Visitor OTP plaintext + no redeem rate limit + client `otp_code` filter. |
-| SSV-007 | MEDIUM | Resident `visitor_set_status` can skip guard OTP (source). |
-| SSV-008 | HIGH | `notify-help-request` unauthenticated `societyId` (source). NOT TESTED live. |
-| SSV-009 | MEDIUM | `convert_bulletin_post_to_snag _auto` skips author (source). NOT TESTED live. |
+| SSV-006 | CLOSED (staging) | `otp_hash` bcrypt; column GRANT omits `otp_code`/`otp_hash`; lookup/redeem RPCs VOLATILE 10/60s; resident list 200 without OTP columns; `select=otp_code` 403. |
+| SSV-007 | CLOSED (staging) | Resident A `visitor_set_status(checked_in)` 403 `Check-in requires a guard OTP redeem`. |
+| SSV-008 | CLOSED (staging) | JWT required. Body societyId/authorId ignored. VOLATILE RPC + Edge 8/hour RL. Anon 401. B notify A 403. Queue cap 200, membership-scoped. |
+| SSV-009 | CLOSED (staging) | `_auto` gated to trigger / service_role / admin. B JWT on A post 403. VOLATILE 20/60s. |
 | SSV-010 | MEDIUM | `conversations_is_member` EXECUTE denied; table SELECT 403. |
-| SSV-011 | LOW | Feature catalog RPCs have no membership check. |
+| SSV-011 | CLOSED (staging) | JWT pin; B catalog for A is 0; A own catalog 32. Kept STABLE so CAF RLS does not write rate-limit rows. |
 | SSV-012 | HIGH | Approved `seller_profiles` globally readable, including `sell_beyond_community=false`. Bank columns selectable. |
 | SSV-013 | HIGH | `search_products_v2` accepts spoofed `_buyer_society_id` and sets `is_same_society`. |
 | SSV-014 | HIGH | `products` SELECT returns other societies' catalog to a Lakeview JWT. |
 | SSV-015 | CLOSED (staging) | Parking, workers, gate, manual_entry, attendance, leave, salary, jobs, guard roster, domestic help: membership AND CAF. Palm JWT 200 `[]` / insert 403. Lakeview still reads own rows. |
 | SSV-016 | CLOSED (staging) | Leftover membership-only PERMISSIVE writes folded into the CAF policy. Notices already AND CAF. Zero leftover without CAF on those tables. |
-| SSV-017 | CLOSED (staging) / HOLD (production) | Staging: idempotent backfill, membership-only `sociva_private.get_user_society_id`, JWT pin + hub isolation. Dual-read skipped so pending `profiles.society_id` cannot open hub. Production still has no `society_memberships`. |
+| SSV-017 | CLOSED (staging + production) | Staging: membership-only helper. Production 2026-11-24: table + FORCE RLS + active backfill for all profiles with `society_id` + JWT-pinned helper. CAF/visitor not copied. |
 | SSV-018 | CLOSED (staging) | Dropped `USING (true)`. Resident A/B each see 1 own-society row; platform admin sees 4; anon 401; resident POST 403. Writes still admin RLS. Production still `USING (true)`. |
 | SSV-019 | CLOSED (staging) | Stage2 A vs B JWT: parking/parcels/notices/visitors/gate/bulletin own society only. B parking/parcels/gate/bulletin empty. Workers empty both (no Stage2 worker rows). Chat RPCs remain VOLATILE. |
 | SSV-020 | CLOSED (staging) | B `conversations_open_or_request` A: 400 recipient-not-in-society. B `conversations_send_message` A conv: 400 `Not a member`. A open A2: 200 pending. Anon open 401. |
 | SSV-021 | CLOSED (staging) | JWT 2026-11-24: A request B 400 one-active; A decide pending 403; anon 401. `request_society_membership` 8/hour, `decide_society_membership` 30/60s, both VOLATILE. |
 | SSV-022 | CLOSED (staging) | JWT: resident assign 400 `not authorized`; platform admin fake package 400 `package not found`. `admin_assign_society_package` 30/60s VOLATILE. |
-| SSV-023 | CLOSED (staging) | JWT: resident B redeem 403 not a guard; Guard B dummy OTP 400 not valid for this society; B and Guard B set_status on A visitor 403. Rate limits added on staging (`ssv023_visitor_rpc_rate_limit`). OTP hashing still open (SSV-006). |
-| SSV-024 | PASS | JWT `user_metadata` spoof does not set `is_admin()` (once `user_roles` is clean). |
-| SSV-025 | PASS | One-active unique index present; do not drop it. |
-| SSV-026 | PARTIAL | Palm Core-only JWT tested for parking/workers/gate/notices (empty + insert 403). Still NOT TESTED: pending, suspended, real guards, visitor create/replay, storage objects, `notify-help-request`, offline kiosk. |
+| SSV-023 | CLOSED (staging) | JWT: resident B redeem 403 not a guard; Guard B dummy OTP 400 not valid for this society; B and Guard B set_status on A visitor 403. Rate limits added on staging (`ssv023_visitor_rpc_rate_limit`). OTP hashing closed in SSV-006. |
+| SSV-024 | CLOSED (staging) | JWT metadata spoof 200; `is_admin()` still false for self and other user. Backend is `user_roles`, not metadata. |
+| SSV-025 | CLOSED (staging) | Unique index `society_memberships_one_active_user` kept. Direct second-society INSERT 403. A request B 400 already an active member. |
+| SSV-026 | CLOSED (staging) with leftover | Pending/suspended parking empty + visitor create 403. Guard A create/redeem/replay. Notify JWT-closed (SSV-008). Payment-proofs JPEG into another uid folder 403 RLS. Offline kiosk / Authorized Persons still untested. |
 
 ---
 
@@ -514,4 +522,4 @@ A resident from Society B **cannot** currently read Society A's parking, parcels
 
 Those are database/API failures, not UI gaps.
 
-Next work (when you explicitly ask to fix, still staging only): close SSV-001 and SSV-002 first, then DEFINER IDOR grants, then marketplace SELECT/RPC, then visitor OTP hashing + rate limit + Authorized Persons. Retest with a disposable non-admin Greenfield JWT, a pending JWT, a suspended JWT, and a guard JWT - created only with approval.
+Next work (when you explicitly ask, still staging first): Authorized Persons / offline kiosk (SSV-026 leftover). Original leftover 8 are closed on staging. Production SSV-017 membership cutover is closed; do not copy staging CAF or visitor RPCs onto production until asked.

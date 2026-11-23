@@ -1,4 +1,4 @@
-# SSV-017 hold: do not copy staging membership onto production
+# SSV-017: production membership cutover (closed 2026-11-24)
 
 Staging `wwuanzbusxoyzixuprxs` uses `society_memberships` + `sociva_private` wrappers.
 Production `kkzkuyhgdvyecmxtmkpy` still uses `profiles.society_id`.
@@ -65,7 +65,17 @@ Copy JWT evidence:
 
 Live production `kkzkuyhgdvyecmxtmkpy`: `society_memberships` still null. Branch deleted after the test so the hourly charge stops.
 
-SSV-017 stays HOLD for **live production** cutover (Phase C backfill + D dual-read + E membership-only `get_user_society_id`). That needs a data-bearing copy or explicit production authorization. Do not apply this schema to live production from this run.
+SSV-017 live production cutover closed 2026-11-24 after explicit authorization.
+
+Applied `20261124008000_ssv017_production_cutover.sql` on `kkzkuyhgdvyecmxtmkpy`:
+
+- `society_memberships` created, FORCE RLS, writes revoked from `authenticated` / `anon`
+- Unique one-active index kept
+- Backfill: every profile with a valid `society_id` became **active** (matches live helper behavior; pending `verification_status` is not membership pending)
+- `sociva_private.get_user_society_id` + public wrapper pins `auth.uid()` for authenticated, null for anon
+- Staging CAF (SSV-015/016) and visitor RPCs were not copied
+
+Do not treat this as a full staging-to-production clone. Marketplace SELECT, visitor OTP, and remaining SSV items are separate.
 
 ## Staging cutover closed (2026-11-23, `wwuanzbusxoyzixuprxs` only)
 

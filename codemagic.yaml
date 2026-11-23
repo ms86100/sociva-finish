@@ -2193,7 +2193,9 @@ workflows:
     instance_type: mac_mini_m2
 
     environment:
-      # sociva_android_signing: CM_KEYSTORE_B64 + CM_KEYSTORE_PASSWORD + CM_KEY_ALIAS + CM_KEY_PASSWORD
+      # sociva_android_signing is empty on this account (no CM_KEYSTORE_B64).
+      # Materialize falls back to a staging-only debug keystore so sideload still builds.
+      # Play-compatible signing needs the four secrets added to that group in Codemagic UI.
       groups:
         - sociva_android_firebase
         - sociva_android_signing
@@ -2213,15 +2215,18 @@ workflows:
       - name: Materialize upload keystore
         script: |
           set -e
-          if [ -z "${CM_KEYSTORE_B64:-}" ]; then
-            echo "ERROR: CM_KEYSTORE_B64 missing. Pass it as a workflow variable (or restore Codemagic android_signing identity)."
-            exit 1
-          fi
-          if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || [ -z "${CM_KEY_ALIAS:-}" ] || [ -z "${CM_KEY_PASSWORD:-}" ]; then
-            echo "ERROR: CM_KEYSTORE_PASSWORD / CM_KEY_ALIAS / CM_KEY_PASSWORD required for signing"
-            exit 1
-          fi
-          python3 - <<'PY'
+          KS="$CM_BUILD_DIR/sociva-upload.keystore"
+          if [ -n "${CM_KEYSTORE_PATH:-}" ] && [ -f "$CM_KEYSTORE_PATH" ]; then
+            export CM_KEYSTORE="$CM_KEYSTORE_PATH"
+            echo "CM_KEYSTORE_PATH=$CM_KEYSTORE_PATH" >> "$CM_ENV"
+            echo "CM_KEYSTORE=$CM_KEYSTORE" >> "$CM_ENV"
+            echo "=== using existing CM_KEYSTORE_PATH ==="
+          elif [ -n "${CM_KEYSTORE_B64:-}" ]; then
+            if [ -z "${CM_KEYSTORE_PASSWORD:-}" ] || [ -z "${CM_KEY_ALIAS:-}" ] || [ -z "${CM_KEY_PASSWORD:-}" ]; then
+              echo "ERROR: CM_KEYSTORE_PASSWORD / CM_KEY_ALIAS / CM_KEY_PASSWORD required for signing"
+              exit 1
+            fi
+            python3 - <<'PY'
           import base64, os, re, sys
           raw = os.environ.get("CM_KEYSTORE_B64") or ""
           cleaned = re.sub(r"\s+", "", raw).replace("-", "+").replace("_", "/")
@@ -2241,11 +2246,30 @@ workflows:
               f.write(data)
           print("=== upload keystore materialized bytes=", len(data), "===")
           PY
-          export CM_KEYSTORE_PATH="$CM_BUILD_DIR/sociva-upload.keystore"
-          export CM_KEYSTORE="$CM_KEYSTORE_PATH"
-          echo "CM_KEYSTORE_PATH=$CM_KEYSTORE_PATH" >> "$CM_ENV"
-          echo "CM_KEYSTORE=$CM_KEYSTORE" >> "$CM_ENV"
-          echo "=== upload keystore materialized ==="
+            export CM_KEYSTORE_PATH="$KS"
+            export CM_KEYSTORE="$KS"
+            echo "CM_KEYSTORE_PATH=$CM_KEYSTORE_PATH" >> "$CM_ENV"
+            echo "CM_KEYSTORE=$CM_KEYSTORE" >> "$CM_ENV"
+            echo "=== upload keystore materialized ==="
+          else
+            echo "WARN: CM_KEYSTORE_B64 missing (sociva_android_signing has no secrets). Generating staging debug keystore."
+            keytool -genkeypair -keystore "$KS" -storetype PKCS12 \
+              -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass android -keypass android \
+              -dname "CN=Sociva Staging, OU=Sociva, O=Sociva, L=Pune, ST=MH, C=IN" \
+              -noprompt
+            export CM_KEYSTORE_PATH="$KS"
+            export CM_KEYSTORE="$KS"
+            export CM_KEYSTORE_PASSWORD="android"
+            export CM_KEY_PASSWORD="android"
+            export CM_KEY_ALIAS="androiddebugkey"
+            echo "CM_KEYSTORE_PATH=$CM_KEYSTORE_PATH" >> "$CM_ENV"
+            echo "CM_KEYSTORE=$CM_KEYSTORE" >> "$CM_ENV"
+            echo "CM_KEYSTORE_PASSWORD=$CM_KEYSTORE_PASSWORD" >> "$CM_ENV"
+            echo "CM_KEY_PASSWORD=$CM_KEY_PASSWORD" >> "$CM_ENV"
+            echo "CM_KEY_ALIAS=$CM_KEY_ALIAS" >> "$CM_ENV"
+            echo "=== staging debug keystore materialized ==="
+          fi
 
       - name: Install dependencies
         script: |

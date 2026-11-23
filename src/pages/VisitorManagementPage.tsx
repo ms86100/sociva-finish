@@ -14,7 +14,7 @@ import { ConfirmAction } from '@/components/ui/confirm-action';
 import { Switch } from '@/components/ui/switch';
 import { ModuleSearchBar } from '@/components/search/ModuleSearchBar';
 import { useVisitorManagement, statusColors } from '@/hooks/useVisitorManagement';
-import { UserPlus, Shield, Clock, Car, Phone, Users, XCircle, Copy, LogIn, LogOut, Download, Loader2, Sparkles } from 'lucide-react';
+import { UserPlus, Shield, Clock, Car, Phone, Users, XCircle, Copy, LogOut, Download, Loader2, Sparkles } from 'lucide-react';
 
 function OtpTile({ code, onCopy }: { code: string; onCopy: () => void }) {
   return (
@@ -179,9 +179,7 @@ export default function VisitorManagementPage() {
                   </div>
                   {visitor.status === 'expected' && (
                     <div className="mt-3 flex gap-2">
-                      <Button size="sm" variant="default" className="h-10 flex-1 rounded-xl" onClick={() => v.handleCheckIn(visitor.id)} disabled={v.loadingId === visitor.id}>
-                        {v.loadingId === visitor.id ? <Loader2 size={14} className="mr-1 animate-spin" /> : <LogIn size={14} className="mr-1" />} Check in
-                      </Button>
+                      <p className="flex-1 text-xs text-muted-foreground">Share the OTP with the guard. Residents cannot skip gate check-in.</p>
                       <ConfirmAction title="Cancel visitor entry?" description={`Cancel entry for ${visitor.visitor_name}?`} actionLabel="Cancel entry" onConfirm={() => v.handleCancel(visitor.id)}>
                         <Button size="sm" variant="outline" className="h-10 rounded-xl"><XCircle size={14} /></Button>
                       </ConfirmAction>

@@ -40,29 +40,32 @@ export function GuardVisitorOTPTab({ societyId }: Props) {
     setVerifiedVisitor(null);
     setVerificationStatus('idle');
 
-    const { data, error } = await supabase
-      .from('visitor_entries')
-      .select('*, resident:profiles!visitor_entries_resident_id_fkey(name)')
-      .eq('society_id', societyId)
-      .eq('otp_code', otpInput.trim())
-      .eq('status', 'expected')
-      .gte('otp_expires_at', new Date().toISOString()) // Fix V3: check OTP expiry
-      .maybeSingle();
+    const { data, error } = IS_STAGING_SUPABASE
+      ? await supabase.rpc('visitor_guard_lookup_otp' as never, { _otp_code: otpInput.trim() } as never)
+      : await supabase
+          .from('visitor_entries')
+          .select('*, resident:profiles!visitor_entries_resident_id_fkey(name)')
+          .eq('society_id', societyId)
+          .eq('otp_code', otpInput.trim())
+          .eq('status', 'expected')
+          .gte('otp_expires_at', new Date().toISOString())
+          .maybeSingle();
 
-    if (error || !data) {
+    const row = IS_STAGING_SUPABASE ? (data as Record<string, unknown> | null) : (data as Record<string, unknown> | null);
+    if (error || !row || (IS_STAGING_SUPABASE && row.ok === false)) {
       setVerificationStatus('failed');
       toast.error('Invalid or expired OTP');
     } else {
       setVerifiedVisitor({
-        id: data.id,
-        visitor_name: data.visitor_name,
-        visitor_phone: data.visitor_phone,
-        visitor_type: data.visitor_type,
-        vehicle_number: data.vehicle_number,
-        flat_number: data.flat_number,
-        expected_time: data.expected_time,
-        status: data.status,
-        resident_name: (data as any).resident?.name,
+        id: String(row.id),
+        visitor_name: String(row.visitor_name || ''),
+        visitor_phone: (row.visitor_phone as string | null) || null,
+        visitor_type: String(row.visitor_type || 'guest'),
+        vehicle_number: (row.vehicle_number as string | null) || null,
+        flat_number: (row.flat_number as string | null) || null,
+        expected_time: (row.expected_time as string | null) || null,
+        status: String(row.status || 'expected'),
+        resident_name: IS_STAGING_SUPABASE ? undefined : (row as { resident?: { name?: string } }).resident?.name,
       });
       setVerificationStatus('success');
     }

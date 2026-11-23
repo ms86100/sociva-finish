@@ -1,8 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
 import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
-
-/* cors: use corsHeadersFor(req) */
+import { withAuth } from "../_shared/auth.ts";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 
 Deno.serve(async (req) => {
   const corsHeaders = corsHeadersFor(req);
@@ -10,88 +9,47 @@ Deno.serve(async (req) => {
     return handleCorsPreflight(req);
   }
 
+  const auth = await withAuth(req, corsHeaders);
+  if (auth instanceof Response) return auth;
+  const { userId, userClient } = auth;
+
+  const rl = await checkRateLimit(`notify-help-request:${userId}`, 8, 3600);
+  if (!rl.allowed) return rateLimitResponse(corsHeaders, rl.retryAfterSeconds);
+
+  let body: { helpRequestId?: string; societyId?: string; authorId?: string };
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    const { helpRequestId, societyId, authorId, title, tag } = await req.json();
-
-    if (!helpRequestId || !societyId || !authorId || !title) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Get all users in the same society (except the author)
-    const { data: societyMembers, error: membersError } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("society_id", societyId)
-      .neq("id", authorId)
-      .eq("verification_status", "approved");
-
-    if (membersError) {
-      throw new Error(`Failed to fetch members: ${membersError.message}`);
-    }
-
-    if (!societyMembers || societyMembers.length === 0) {
-      return new Response(
-        JSON.stringify({ message: "No society members to notify", sent: 0 }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // Get author name
-    const { data: author } = await supabase
-      .from("profiles")
-      .select("name")
-      .eq("id", authorId)
-      .single();
-
-    const tagLabels: Record<string, string> = {
-      borrow: "🤝 Borrow",
-      emergency: "🚨 Emergency",
-      question: "❓ Question",
-      offer: "🎁 Offer",
-    };
-
-    const notifTitle = `${tagLabels[tag] || "Help"} Request`;
-    const notifBody = `${author?.name || "A neighbor"}: ${title}`;
-
-    // Send push notification to each member
-    const sendUrl = `${supabaseUrl}/functions/v1/send-push-notification`;
-    const results = await Promise.allSettled(
-      societyMembers.map(async (member) => {
-        const response = await fetch(sendUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({
-            userId: member.id,
-            title: notifTitle,
-            body: notifBody,
-            data: { type: "help_request", helpRequestId },
-          }),
-        });
-        return response.json();
-      })
-    );
-
-    const succeeded = results.filter((r) => r.status === "fulfilled").length;
-
-    return new Response(
-      JSON.stringify({ message: `Notified ${succeeded} members`, sent: succeeded }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  } catch (error) {
-    console.error("Help request notification error:", error);
-    return new Response(
-      JSON.stringify({ error: String(error) }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    body = await req.json();
+  } catch {
+    return new Response(JSON.stringify({ error: "Invalid JSON" }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
+
+  const helpRequestId = String(body?.helpRequestId || "").trim();
+  if (!helpRequestId) {
+    return new Response(JSON.stringify({ error: "helpRequestId required" }), {
+      status: 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Ignore client societyId / authorId. RPC pins JWT membership.
+  const { data, error } = await userClient.rpc("notify_help_request", {
+    _help_request_id: helpRequestId,
+  });
+
+  if (error) {
+    const msg = error.message || "Notify failed";
+    const denied = /not authenticated|not authorized|membership/i.test(msg);
+    return new Response(JSON.stringify({ error: msg }), {
+      status: denied ? 403 : 400,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  return new Response(JSON.stringify(data ?? { ok: true }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 });

@@ -9,7 +9,9 @@
 | Companion | `docs/audits/SOCIVA_STAGING_SECURITY_VALIDATION.md` |
 | Date (UTC) | 2026-11-23 |
 
-**Decision: NO-GO to merge or apply the staging membership architecture onto production.** Staging SSV-017 cutover is closed on `wwuanzbusxoyzixuprxs` only (`20261124004000_ssv017_staging_cutover_backfill_membership.sql`). Dual-read was skipped there so pending `profiles.society_id` cannot open hub SELECT. Live production is unchanged.
+**Update 2026-11-24:** SSV-017 membership table + JWT-pinned helper is now live on production (`20261124008000_ssv017_production_cutover.sql`). 233 active memberships backfilled from `profiles.society_id`. Staging CAF, visitor RPCs, and request/decide RPCs were not copied. Remaining production holes (marketplace SELECT, visitor OTP, remaining SSV) are unchanged.
+
+**Original decision (2026-11-23):** NO-GO to clone the full staging membership architecture onto production. Staging SSV-017 cutover was closed on `wwuanzbusxoyzixuprxs` only (`20261124004000_ssv017_staging_cutover_backfill_membership.sql`). Dual-read was skipped there so pending `profiles.society_id` cannot open hub SELECT.
 
 Do not merge because staging "works". Staging SSV-001/002/003 are now closed on staging only. Production still uses `profiles.society_id` as membership, still has a live `user_roles` self-grant INSERT, and still exposes DEFINER helpers to `anon`. Promoting the membership architecture now would mix an unproven cutover with those live holes.
 
