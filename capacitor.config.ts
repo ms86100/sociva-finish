@@ -17,6 +17,17 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const isDev = process.env.CAPACITOR_ENV === 'development';
 
+const allowNavigation = [
+  'kkzkuyhgdvyecmxtmkpy.supabase.co',
+  'wwuanzbusxoyzixuprxs.supabase.co',
+  'www.sociva.in',
+  'sociva.in',
+  '*.razorpay.com',
+  '*.razorpay.in',
+  'api.retellai.com',
+  '*.retellai.com',
+];
+
 const config: CapacitorConfig = {
   appId: 'app.sociva.community',
   appName: 'Sociva',
@@ -37,15 +48,7 @@ const config: CapacitorConfig = {
     server: {
       hostname: 'www.sociva.in',
       androidScheme: 'https',
-      allowNavigation: [
-        'kkzkuyhgdvyecmxtmkpy.supabase.co',
-        'www.sociva.in',
-        'sociva.in',
-        '*.razorpay.com',
-        '*.razorpay.in',
-        'api.retellai.com',
-        '*.retellai.com',
-      ],
+      allowNavigation,
     },
   }),
 

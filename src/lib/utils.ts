@@ -76,7 +76,14 @@ export function friendlyError(error: unknown): string {
   if (lower.includes('row-level security') || lower.includes('rls') || lower.includes('policy')) {
     return "You don't have permission for this action.";
   }
-  if (lower.includes('networkerror') || lower.includes('failed to fetch') || lower.includes('network request failed')) {
+  if (
+    lower.includes('networkerror') ||
+    lower.includes('failed to fetch') ||
+    lower.includes('network request failed') ||
+    lower.includes('load failed') ||
+    lower.includes('fetch failed') ||
+    lower.includes('the network connection was lost')
+  ) {
     return 'Please check your internet connection and try again.';
   }
   if (lower.includes('duplicate key') || lower.includes('unique constraint') || lower.includes('already exists')) {

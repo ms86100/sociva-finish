@@ -139,6 +139,8 @@ describe('friendlyError - Error Mapping', () => {
   });
   it('maps network errors', () => {
     expect(friendlyError(new Error('Failed to fetch'))).toContain('internet connection');
+    expect(friendlyError(new TypeError('Load failed'))).toContain('internet connection');
+    expect(friendlyError(new TypeError('Fetch failed'))).toContain('internet connection');
   });
   it('maps duplicate key errors', () => {
     expect(friendlyError(new Error('duplicate key value'))).toContain('already exists');

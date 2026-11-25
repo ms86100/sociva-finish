@@ -14,6 +14,8 @@ export const ALLOWED_ORIGINS: readonly string[] = [
   "http://localhost",
   "capacitor://localhost",
   "ionic://localhost",
+  "capacitor://www.sociva.in",
+  "ionic://www.sociva.in",
   "https://sociva.in",
   "https://www.sociva.in",
   "https://app.sociva.in",

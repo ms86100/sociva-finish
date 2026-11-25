@@ -33,6 +33,13 @@ describe('Razorpay native checkout shell', () => {
     expect(css).not.toMatch(/env\(safe-area-inset-top, 44px\)/);
   });
 
+  it('allows staging supabase navigation and Capacitor iOS origin CORS', () => {
+    const cap = read('capacitor.config.ts');
+    expect(cap).toMatch(/wwuanzbusxoyzixuprxs\.supabase\.co/);
+    const cors = read('supabase/functions/_shared/cors.ts');
+    expect(cors).toMatch(/capacitor:\/\/www\.sociva\.in/);
+  });
+
   it('declares UPI app visibility for iOS canOpenURL and Android package queries', () => {
     const cap = read('capacitor.config.ts');
     const manifest = read('android/app/src/main/AndroidManifest.xml');

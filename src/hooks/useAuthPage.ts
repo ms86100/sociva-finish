@@ -252,7 +252,7 @@ export function useAuthPage() {
       showFeedback({
         title: timedOut
           ? 'OTP is taking too long. Please try again.'
-          : (error.message || 'Failed to send OTP'),
+          : friendlyError(error) || 'Could not send OTP. Please try again.',
         variant: 'warning',
       });
     } finally {
