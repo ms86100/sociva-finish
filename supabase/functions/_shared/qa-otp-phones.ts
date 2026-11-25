@@ -4,6 +4,8 @@ export const QA_OTP_BYPASS_PHONES = [
   "0987654321",
   "9876543201",
   "8448802907",
+  // Staging TestFlight seller/admin account. Gated by ALLOW_OTP_BYPASS (staging only).
+  "9535115316",
   // Staging join E2E - approved registry, pending membership, no maps
   "8448802999",
   // Staging first-login + join UI (non-member)

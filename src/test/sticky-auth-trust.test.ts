@@ -2,7 +2,7 @@
  * Sticky auth / honest Account UI contracts (ship trust).
  * Guards session restore, logout bounce, and Profile loading UX.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
@@ -72,7 +72,9 @@ describe('Sticky auth: /auth bounce guard', () => {
 
   it('App.tsx gate requires society_id for authedHome and sends incomplete users to profile edit', () => {
     const src = readFileSync(resolve(__dirname, '../App.tsx'), 'utf8');
-    expect(src).toMatch(/authedHome\s*=\s*!!\(user\s*&&\s*profile\?\.society_id\s*&&\s*!isSigningOut\)/);
+    expect(src).toMatch(/assignedSociety/);
+    expect(src).toMatch(/hasAssignedSociety/);
+    expect(src).toMatch(/effectiveSocietyId/);
     expect(src).toMatch(/needsSocietyOnboarding/);
     expect(src).toMatch(/SocietyOnboardingRedirect/);
     expect(src).toMatch(/profileEditOnboardingState/);
@@ -116,6 +118,39 @@ describe('Sticky auth: clearAuthState contract', () => {
 });
 
 describe('Sticky auth: Preferences restore → setSession', () => {
+  const methodKeys = new Set(['getItem', 'setItem', 'removeItem', 'clear', 'key', 'length']);
+  const stubStorage = {
+    getItem(key: string) {
+      return Object.prototype.hasOwnProperty.call(this, key) ? String((this as Record<string, string>)[key]) : null;
+    },
+    setItem(key: string, value: string) {
+      (this as Record<string, string>)[key] = String(value);
+    },
+    removeItem(key: string) {
+      delete (this as Record<string, string>)[key];
+    },
+    clear() {
+      for (const key of Object.keys(this)) {
+        if (!methodKeys.has(key)) delete (this as Record<string, string>)[key];
+      }
+    },
+    key(index: number) {
+      return Object.keys(this).filter((key) => !methodKeys.has(key))[index] ?? null;
+    },
+    get length() {
+      return Object.keys(this).filter((key) => !methodKeys.has(key)).length;
+    },
+  } as Storage;
+
+  beforeEach(() => {
+    stubStorage.clear();
+    Object.defineProperty(globalThis, 'localStorage', {
+      configurable: true,
+      writable: true,
+      value: stubStorage,
+    });
+  });
+
   it('restoreAuthSession returns null on web (Preferences path is native-only)', async () => {
     const tokens = await restoreAuthSession();
     expect(tokens).toBeNull();

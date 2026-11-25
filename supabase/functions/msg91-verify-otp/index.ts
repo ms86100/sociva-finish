@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
 
     const isAppleReviewBypass =
       isOtpBypassEnabled() &&
-      (isQaOtpBypassPhone(phone) || phone === "9535115316") &&
+      isQaOtpBypassPhone(phone) &&
       reqId === "apple-review-bypass" &&
       otp === "1234";
     const mobile = `${country_code}${phone}`;

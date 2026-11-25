@@ -36,6 +36,8 @@ export interface AuthContextType {
   setViewAsSociety: (id: string | null) => void;
   effectiveSocietyId: string | null;
   effectiveSociety: Society | null;
+  /** Staging membership overlay. Pending still counts as assigned for join skip. */
+  membership: { status?: string | null; societyId?: string | null } | null;
 }
 
 export interface AuthState {

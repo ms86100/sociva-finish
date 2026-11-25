@@ -3,7 +3,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, IS_STAGING_SUPABASE } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
-import { requestSocietyMembership } from '@/lib/society-membership';
+import { fetchOwnMembership, requestSocietyMembership } from '@/lib/society-membership';
+import { hasAssignedSociety } from '@/lib/society-assignment';
 import { fetchApprovedSocieties, submitSocietyRegistryRequest } from '@/lib/approved-societies';
 import { toast } from 'sonner';
 import { friendlyError } from '@/lib/utils';
@@ -91,7 +92,12 @@ export function useAuthPage() {
         .select('society_id')
         .eq('id', user.id)
         .maybeSingle();
-      if (cancelled || prof?.society_id) return;
+      if (cancelled) return;
+      let membership = null;
+      if (IS_STAGING_SUPABASE) {
+        membership = await fetchOwnMembership(user.id);
+      }
+      if (hasAssignedSociety({ societyId: prof?.society_id, membership })) return;
       const editState = profileEditOnboardingState({
         locationReturnTo: isCheckoutResume ? '/cart' : (authReturnTo.startsWith('/') ? authReturnTo : null),
         focusAddress: true,
@@ -409,16 +415,26 @@ export function useAuthPage() {
       }
       let resolvedNew = is_new_user;
       let prof: any = null;
+      let membership = null;
       if (authUser) {
         const { data } = await supabase.from('profiles')
           .select('name, flat_number, block, society_id')
           .eq('id', authUser.id).maybeSingle();
         prof = data;
-        if (resolvedNew && prof?.society_id) resolvedNew = false;
+        if (IS_STAGING_SUPABASE) {
+          membership = await fetchOwnMembership(authUser.id);
+        }
+        if (resolvedNew && hasAssignedSociety({ societyId: prof?.society_id, membership })) {
+          resolvedNew = false;
+        }
       }
 
-      // Society membership is assigned on delivery-address onboarding (one location pick).
-      if (resolvedNew || !prof?.society_id) {
+      const alreadyInSociety = hasAssignedSociety({
+        societyId: prof?.society_id,
+        membership,
+      });
+      // New users pick an approved society. Existing members skip join.
+      if (resolvedNew || !alreadyInSociety) {
         showFeedback({ title: 'Phone verified! Add your delivery address to continue.', variant: 'success' });
         setIsNewUser(true);
         const editState = profileEditOnboardingState({

@@ -20,6 +20,7 @@ import { ForYouSection } from '@/components/home/ForYouSection';
 import { WhatsNewSection } from '@/components/home/WhatsNewSection';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { hasAssignedSociety } from '@/lib/society-assignment';
 import { useCart } from '@/hooks/useCart';
 import { profileEditOnboardingState } from '@/lib/pending-auth-action';
 import { useBuyerRealtimeShell } from '@/hooks/useBuyerRealtimeShell';
@@ -29,7 +30,7 @@ import { getScrollRoot } from '@/lib/pull-to-refresh';
 
 export default function HomePage() {
   useBuyerRealtimeShell();
-  const { user, profile } = useAuth();
+  const { user, profile, effectiveSocietyId, membership } = useAuth();
   const { itemCount } = useCart();
   const { browsingLocation } = useBrowsingLocation();
   const needsPreciseLocation = !hasPreciseCoordinates(browsingLocation?.lat, browsingLocation?.lng);
@@ -59,9 +60,16 @@ export default function HomePage() {
     prefetchBuyerRoutes();
   }, []);
 
-  // Society membership is set on delivery-address onboarding.
+  // Society membership is set on approved-society onboarding.
   // If they already have cart items (mid-checkout), send returnTo so they come back to cart.
-  if (profile && !profile.society_id) {
+  if (
+    profile &&
+    !hasAssignedSociety({
+      societyId: profile.society_id,
+      effectiveSocietyId,
+      membership,
+    })
+  ) {
     return (
       <Navigate
         to="/profile/edit"
@@ -96,6 +104,14 @@ export default function HomePage() {
           <ActiveOrderStrip />
         </div>
         <div className="stack-gap mx-4 mt-3">
+          {membership?.status === 'pending' && (
+            <div className="rounded-xl border border-border bg-muted/40 px-3 py-2.5">
+              <p className="text-xs font-semibold text-foreground">Join request pending</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                Your society admin still needs to approve access. Marketplace browsing stays available.
+              </p>
+            </div>
+          )}
           <HomePushEnableCard />
           <HomeNotificationBanner embedded />
           <AppUpdateBanner />

@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.93.3";
 import { corsHeadersFor, handleCorsPreflight } from "../_shared/cors.ts";
+import { getClientIp } from "../_shared/client-ip.ts";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rate-limiter.ts";
 
 /* cors: use corsHeadersFor(req) */
 
@@ -12,6 +14,8 @@ Deno.serve(async (req) => {
   // Public endpoint: the Google Maps key is loaded into the browser and must be
   // restricted by HTTP referrer in Google Cloud Console (that is the real security boundary).
   // Requiring a JWT here just breaks unauthenticated pages and pre-auth bootstrap.
+  const mapsRl = await checkRateLimit(`maps-key:${getClientIp(req)}`, 30, 60);
+  if (!mapsRl.allowed) return rateLimitResponse(corsHeaders);
 
   // 1. Try admin_settings first (admin override)
   try {

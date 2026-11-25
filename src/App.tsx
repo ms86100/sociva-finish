@@ -62,6 +62,7 @@ function lazyWithRetry<T extends ComponentType<any>>(
 }
 import { supabase } from "@/integrations/supabase/client";
 import { IdentityContext as IdentityCtx, SellerContext as SellerCtx } from "@/contexts/auth/contexts";
+import { hasAssignedSociety } from "@/lib/society-assignment";
 
 import { ThemeProvider, useTheme } from "next-themes";
 import { toast } from "sonner";
@@ -635,7 +636,7 @@ function LegacySellersRedirect() {
 }
 
 function AppRoutes() {
-  const { user, profile, isSessionRestored, isSigningOut } = useAuth();
+  const { user, profile, isSessionRestored, isSigningOut, effectiveSocietyId, membership } = useAuth();
   const deferredNavigate = useNavigate();
   useReorderInterceptor();
 
@@ -667,11 +668,16 @@ function AppRoutes() {
   }, [isSessionRestored, user, profile, deferredNavigate]);
 
   // Session restore only for splash - do not wait on profile for the shell.
-  // Incomplete users (profile loaded, no society_id) complete delivery-address onboarding.
-  // Require `profile` so a null hydration state does not bounce returning users to edit.
+  // Incomplete users (profile loaded, no society) complete approved-society onboarding.
+  // Staging also treats active membership as assigned so existing residents are not bounced.
   const sessionPending = !isSessionRestored;
-  const authedHome = !!(user && profile?.society_id && !isSigningOut);
-  const needsSocietyOnboarding = !!(user && !isSigningOut && profile && !profile.society_id);
+  const assignedSociety = hasAssignedSociety({
+    societyId: profile?.society_id,
+    effectiveSocietyId,
+    membership,
+  });
+  const authedHome = !!(user && assignedSociety && !isSigningOut);
+  const needsSocietyOnboarding = !!(user && !isSigningOut && profile && !assignedSociety);
 
   return (
     <PageTransitionWrapper>

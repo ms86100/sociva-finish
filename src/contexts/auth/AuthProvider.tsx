@@ -184,6 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setCurrentSellerId,
     viewAsSocietyId, setViewAsSociety,
     effectiveSocietyId, effectiveSociety,
+    membership: stagingMembership,
   }), [
     user, session, profile, society, roles, sellerProfiles,
     currentSellerId, isLoading, isSessionRestored,
@@ -193,6 +194,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     societyAdminRole, managedBuilderIds,
     signOut, refreshProfile, setCurrentSellerId,
     viewAsSocietyId, setViewAsSociety, effectiveSocietyId, effectiveSociety,
+    stagingMembership,
   ]);
 
   return (

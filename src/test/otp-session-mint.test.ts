@@ -19,19 +19,24 @@ describe('OTP session mint (no wasted MSG91 OTP)', () => {
     const src = read('src/hooks/useAuthPage.ts');
     expect(src).toMatch(/otpConsumedNeedsFreshRef/);
     expect(src).toMatch(/setSession\(\{\s*access_token/);
+    expect(src).toMatch(/hasAssignedSociety/);
+    expect(src).toMatch(/fetchOwnMembership/);
     expect(src).toMatch(/Phone verified, but sign-in timed out/);
     expect(src).toMatch(/forceFresh/);
   });
 
   it('QA bypass phones never retry MSG91 with apple-review-bypass reqId', () => {
     const send = read('supabase/functions/msg91-send-otp/index.ts');
-    expect(send).toMatch(/reqId === "apple-review-bypass"/);
+    expect(send).toMatch(/reqId: "apple-review-bypass"/);
     expect(send).toMatch(/isQaOtpBypassPhone/);
+    expect(send).not.toMatch(/\|\| reqId === "apple-review-bypass"/);
     expect(send).not.toMatch(/9535115316/);
     const verify = read('supabase/functions/msg91-verify-otp/index.ts');
     expect(verify).toMatch(/isQaOtpBypassPhone/);
+    expect(verify).not.toMatch(/phone === "9535115316"/);
     const phones = read('supabase/functions/_shared/qa-otp-phones.ts');
     expect(phones).toMatch(/8448802999/);
+    expect(phones).toMatch(/9535115316/);
     const clientPhones = read('src/lib/qa-otp-bypass.ts');
     expect(clientPhones).toMatch(/8448802999/);
     const client = read('src/hooks/useAuthPage.ts');

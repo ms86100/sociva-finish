@@ -108,10 +108,8 @@ Deno.serve(async (req) => {
     }
 
     // Apple Review + QA phones: only when ALLOW_OTP_BYPASS is explicitly enabled.
-    if (
-      bypassAllowed &&
-      ((isQaBypassPhone && country_code === "91") || reqId === "apple-review-bypass")
-    ) {
+    // reqId alone must never skip MSG91 - phone must be on the gated allowlist.
+    if (bypassAllowed && isQaBypassPhone && country_code === "91") {
       return new Response(
         JSON.stringify({ success: true, message: resend ? "OTP resent" : "OTP sent", reqId: "apple-review-bypass" }),
         { headers: { ...cors, "Content-Type": "application/json" } },
